@@ -1,0 +1,36 @@
+{
+  "id": "hierarchical_simple",
+  "name": "Hierarchical Simple",
+  "description": "Two-step extraction: human-readable extraction followed by JSON conversion.",
+  "version": "1.0.0",
+  "result_processor": "hierarchical_simple",
+  "ui_config": {
+    "color": "sky",
+    "icon": "layers",
+    "speed": "medium"
+  },
+  "steps": [
+    {
+      "id": "step1",
+      "name": "System discovery",
+      "type": "extract",
+      "output_format": "text",
+      "system_prompt": "You summarize materials papers and identify every distinct material system/sample with attributes.",
+      "user_prompt_template": "List each material system and its properties from this text:\n{document_text}",
+      "depends_on": [],
+      "config": {}
+    },
+    {
+      "id": "step2",
+      "name": "JSON construction",
+      "type": "transform",
+      "output_format": "json",
+      "system_prompt": "Convert extracted material systems into JSON only.",
+      "user_prompt_template": "Convert the previous extraction into this JSON shape: {{\"investigated_systems\":[{{\"system_name\":\"...\",\"properties\":[{{\"name\":\"...\",\"value\":\"...\",\"unit\":\"\",\"remark\":\"\",\"source\":\"\",\"method\":\"\"}}]}}]}}. Previous extraction: {step1}",
+      "depends_on": [
+        "step1"
+      ],
+      "config": {}
+    }
+  ]
+}

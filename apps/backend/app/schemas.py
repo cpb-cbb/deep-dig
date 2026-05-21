@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class ErrorResponse(BaseModel):
+    code: str
+    message: str
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class SettingsOut(BaseModel):
+    store_raw_text: bool
+    notify_on_job_complete: bool
+    telemetry_opt_in: bool
+    preferred_language: str
+
+
+class MeOut(BaseModel):
+    id: UUID
+    email: str | None
+    display_name: str | None
+    plan: str
+    quota: dict[str, Any]
+    settings: SettingsOut
+
+
+class MePatch(BaseModel):
+    display_name: str | None = None
+    settings: dict[str, Any] | None = None
+
+
+class WorkflowOut(BaseModel):
+    id: str
+    name: str
+    description: str
+    version: str
+    ui_config: dict[str, Any]
+
+
+class JobCreateItem(BaseModel):
+    file_name: str = Field(min_length=1, max_length=512)
+    file_hash: str = Field(min_length=8, max_length=128)
+    text: str = Field(min_length=1)
+
+
+class JobCreate(BaseModel):
+    workflow_id: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    items: list[JobCreateItem] = Field(min_length=1)
+
+
+class JobCreateOut(BaseModel):
+    job_id: UUID
+    queued_items: int
+    estimated_seconds: int
+
+
+class JobOut(BaseModel):
+    id: UUID
+    workflow_id: str
+    status: str
+    total_items: int
+    completed_items: int
+    failed_items: int
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class JobItemOut(BaseModel):
+    id: UUID
+    ordinal: int
+    file_name: str
+    file_hash: str
+    text_length: int
+    status: str
+    parsed_result: dict[str, Any] | None
+    error_code: str | None
+    error_message: str | None
+    finished_at: datetime | None
+
+
+class Property(BaseModel):
+    value: str
+    unit: str = ""
+    remark: str = ""
+    source: str = ""
+    method: str = ""
+
+
+class Sample(BaseModel):
+    name: str
+    properties: dict[str, Property]
+
+
+class ParsedResult(BaseModel):
+    success: bool
+    samples: list[Sample] = Field(default_factory=list)
+    headers: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+JobStatus = Literal["pending", "running", "completed", "failed", "cancelled"]

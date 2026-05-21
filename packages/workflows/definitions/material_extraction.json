@@ -1,0 +1,41 @@
+{
+  "id": "material_extraction",
+  "name": "Material Science Data Extraction",
+  "description": "Screen the paper, extract properties per detected sample, and preserve source/method metadata.",
+  "version": "1.0.0",
+  "result_processor": "material_extraction",
+  "ui_config": {
+    "color": "blue",
+    "icon": "beaker",
+    "badge": "Recommended",
+    "speed": "slow"
+  },
+  "steps": [
+    {
+      "id": "screen_paper",
+      "name": "Paper screening",
+      "type": "screen",
+      "output_format": "json",
+      "system_prompt": "You are an expert materials science research assistant. Return JSON with isExperimental, sampleNames, and reason.",
+      "user_prompt_template": "Analyze whether this paper contains experimental materials data and list sample names. Text:\n{document_text}",
+      "depends_on": [],
+      "config": {
+        "require_experimental": true
+      }
+    },
+    {
+      "id": "extract_sample_data",
+      "name": "Sample data extraction",
+      "type": "extract",
+      "output_format": "json",
+      "iterate_over": "sampleNames",
+      "iterate_input_var": "sample_name",
+      "system_prompt": "Extract all available properties for the target sample as JSON. Each property value must include value, unit, remark, source, and method.",
+      "user_prompt_template": "Target sample: {sample_name}\nText:\n{document_text}",
+      "depends_on": [
+        "screen_paper"
+      ],
+      "config": {}
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "code_friendly",
+  "name": "Code Friendly Extraction",
+  "description": "Fast single-step extraction into a strict parseable text format.",
+  "version": "1.0.0",
+  "result_processor": "code_friendly",
+  "ui_config": {
+    "color": "emerald",
+    "icon": "table",
+    "badge": "Fast",
+    "speed": "fast"
+  },
+  "steps": [
+    {
+      "id": "step1",
+      "name": "Structured extraction",
+      "type": "extract",
+      "output_format": "text",
+      "system_prompt": "You are a materials science data assistant. Extract material samples and their attributes into a strict machine-parseable format.",
+      "user_prompt_template": "Identify each distinct material sample or system. Use this exact format:\n# SAMPLE: <Sample Name>\n- <Property Name> | <Value> | <Unit> | <Remark/Condition> | <Source> | <Method>\nUse N/A for unavailable units. Keep one property per line.\n\nText:\n{document_text}",
+      "depends_on": [],
+      "config": {}
+    }
+  ]
+}

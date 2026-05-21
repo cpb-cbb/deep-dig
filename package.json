@@ -1,0 +1,14 @@
+{
+  "name": "deep-dig",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev:desktop": "pnpm --filter @deep-dig/desktop dev",
+    "build:desktop": "pnpm --filter @deep-dig/desktop build",
+    "generate:types": "openapi-typescript apps/backend/openapi.json -o packages/shared-types/src/openapi.d.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.6.1"
+  }
+}

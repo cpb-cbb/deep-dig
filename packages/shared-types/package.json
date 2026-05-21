@@ -1,0 +1,7 @@
+{
+  "name": "@deep-dig/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/openapi.d.ts" }
+}
