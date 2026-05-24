@@ -1,37 +1,39 @@
 import { FileText, Play, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { apiFetch } from './api';
-import { parsePdfText } from './pdf';
+import { ParsedFile, selectAndParsePdfs } from './native';
 
-type Workflow = { id: string; name: string; description: string; ui_config: Record<string, unknown> };
-type ParsedFile = { fileName: string; fileHash: string; text: string };
+type ExtractionMode = { id: string; name: string; description: string; ui_config: Record<string, unknown> };
 
 export function App() {
   const [token, setToken] = useState('');
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [workflowId, setWorkflowId] = useState('code_friendly');
+  const [modes, setModes] = useState<ExtractionMode[]>([]);
+  const [modeId, setModeId] = useState('code_friendly');
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [status, setStatus] = useState('Ready');
 
-  async function loadWorkflows() {
+  async function loadModes() {
     const data = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'}/workflows`).then((r) => r.json());
-    setWorkflows(data);
-    if (data[0]) setWorkflowId(data[0].id);
+    setModes(data);
+    if (data[0]) setModeId(data[0].id);
   }
 
-  async function onFiles(selected: FileList | null) {
-    if (!selected) return;
+  async function selectFiles() {
     setStatus('Parsing PDFs locally...');
-    const parsed = await Promise.all(Array.from(selected).map(parsePdfText));
-    setFiles(parsed);
-    setStatus(`Parsed ${parsed.length} PDF(s).`);
+    try {
+      const parsed = await selectAndParsePdfs();
+      setFiles(parsed);
+      setStatus(parsed.length ? `Parsed ${parsed.length} PDF(s).` : 'Ready');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
   }
 
   async function submitJob() {
     setStatus('Submitting job...');
     const result = await apiFetch<{ job_id: string }>('/jobs', token, {
       method: 'POST',
-      body: JSON.stringify({ workflow_id: workflowId, config: {}, items: files.map((file) => ({ file_name: file.fileName, file_hash: file.fileHash, text: file.text })) }),
+      body: JSON.stringify({ workflow_id: modeId, config: {}, items: files.map((file) => ({ file_name: file.fileName, file_hash: file.fileHash, text: file.text })) }),
     });
     setStatus(`Queued job ${result.job_id}`);
   }
@@ -41,23 +43,22 @@ export function App() {
       <section className="toolbar">
         <div>
           <h1>Deep Dig</h1>
-          <p>Local PDF parsing, backend-owned AI extraction.</p>
+          <p>Extract structured materials data from local PDFs.</p>
         </div>
-        <button onClick={loadWorkflows} title="Load workflows"><RefreshCw size={18} /> Workflows</button>
+        <button onClick={loadModes} title="Refresh extraction modes"><RefreshCw size={18} /> Modes</button>
       </section>
       <section className="panel">
         <label>Bearer token</label>
         <textarea value={token} onChange={(event) => setToken(event.target.value)} placeholder="Supabase access token for development" />
-        <label>Workflow</label>
-        <select value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
-          {workflows.length === 0 && <option value="code_friendly">code_friendly</option>}
-          {workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name}</option>)}
+        <label>Extraction mode</label>
+        <select value={modeId} onChange={(event) => setModeId(event.target.value)}>
+          {modes.length === 0 && <option value="code_friendly">Fast structured extraction</option>}
+          {modes.map((mode) => <option key={mode.id} value={mode.id}>{mode.name}</option>)}
         </select>
-        <label className="drop">
+        <button className="drop" type="button" onClick={selectFiles}>
           <FileText size={24} />
           <span>Select PDFs</span>
-          <input type="file" accept="application/pdf" multiple onChange={(event) => onFiles(event.target.files)} />
-        </label>
+        </button>
         <button disabled={!token || files.length === 0} onClick={submitJob}><Play size={18} /> Start extraction</button>
       </section>
       <section className="panel">

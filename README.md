@@ -37,7 +37,9 @@ Then use `Authorization: Bearer dev` for protected API calls.
 
 ```bash
 pnpm install
-pnpm --filter @deep-dig/desktop dev
+cd apps/desktop
+uv sync
+pnpm tauri dev
 ```
 
 ## MVP boundaries

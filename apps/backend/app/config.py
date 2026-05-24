@@ -19,9 +19,12 @@ class Settings(BaseSettings):
     dev_auth_enabled: bool = False
     dev_auth_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
     dev_auth_email: str = "dev@deepdig.local"
-    llm_provider: Literal["auto", "openrouter", "anthropic", "fake"] = "auto"
+    llm_provider: Literal["auto", "openrouter", "anthropic", "openai_compatible", "fake"] = "auto"
     llm_openrouter_key: str = Field(default="", repr=False)
     llm_anthropic_key: str = Field(default="", repr=False)
+    llm_compat_base_url: str = "https://api.openai.com/v1"
+    llm_compat_api_key: str = Field(default="", repr=False)
+    llm_compat_model: str = "gpt-4o-mini"
     daily_cost_budget_usd: float = 200
     sentry_dsn: str = ""
     free_monthly_quota: int = 50
