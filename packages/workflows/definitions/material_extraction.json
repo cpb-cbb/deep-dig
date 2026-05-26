@@ -1,40 +1,24 @@
 {
   "id": "material_extraction",
   "name": "Material Science Data Extraction",
-  "description": "Screen the paper, extract properties per detected sample, and preserve source/method metadata.",
+  "description": "Extract a sample-property table for user-requested material properties.",
   "version": "1.0.0",
   "result_processor": "material_extraction",
   "ui_config": {
     "color": "blue",
     "icon": "beaker",
     "badge": "Recommended",
-    "speed": "slow"
+    "speed": "fast"
   },
   "steps": [
     {
-      "id": "screen_paper",
-      "name": "Paper screening",
-      "type": "screen",
-      "output_format": "json",
-      "system_prompt": "You are an expert materials science research assistant. Return JSON with isExperimental, sampleNames, and reason.",
-      "user_prompt_template": "Analyze whether this paper contains experimental materials data and list sample names. Text:\n{document_text}",
-      "depends_on": [],
-      "config": {
-        "require_experimental": true
-      }
-    },
-    {
-      "id": "extract_sample_data",
-      "name": "Sample data extraction",
+      "id": "extract_property_table",
+      "name": "Requested property table extraction",
       "type": "extract",
       "output_format": "json",
-      "iterate_over": "sampleNames",
-      "iterate_input_var": "sample_name",
-      "system_prompt": "Extract all available properties for the target sample as JSON. Each property value must include value, unit, remark, source, and method.",
-      "user_prompt_template": "Target sample: {sample_name}\nText:\n{document_text}",
-      "depends_on": [
-        "screen_paper"
-      ],
+      "system_prompt": "You are an expert materials science data extraction assistant. Extract only the requested properties from the document. Identify all material samples that have at least one requested property. Return JSON only, with no markdown or explanation. Use the exact requested property names as JSON keys. Do not infer values that are not present in the document. Preserve units and experimental conditions when available.",
+      "user_prompt_template": "Requested properties as a JSON array:\n{properties}\n\nReturn exactly this JSON shape:\n{{\"samples\":[{{\"sample_name\":\"...\",\"properties\":{{\"<exact requested property name>\":{{\"value\":\"...\",\"unit\":\"...\",\"remark\":\"...\",\"source\":\"...\",\"method\":\"...\"}}}}}}]}}\n\nRules:\n- Extract only properties listed in the requested properties array.\n- Omit a requested property for a sample if the document does not report it.\n- Include a sample only if at least one requested property is found.\n- Put measurement conditions, electrolyte, current density, temperature, activation conditions, or other qualifiers in remark.\n- Use source to identify where the value came from, such as text, table name, figure caption, or section when available.\n- Use method for characterization or testing method when available.\n\nDocument text:\n{document_text}",
+      "depends_on": [],
       "config": {}
     }
   ]

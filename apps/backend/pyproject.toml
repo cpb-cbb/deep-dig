@@ -9,6 +9,7 @@ dependencies = [
   "asyncpg>=0.30.0",
   "fastapi>=0.115.6",
   "httpx>=0.28.1",
+  "json-repair>=0.59.10",
   "orjson>=3.10.12",
   "pydantic>=2.10.4",
   "pydantic-settings>=2.7.0",
@@ -16,7 +17,7 @@ dependencies = [
   "redis>=5.2.1",
   "sentry-sdk[fastapi]>=2.19.2",
   "sqlalchemy[asyncio]>=2.0.36",
-  "uvicorn[standard]>=0.34.0"
+  "uvicorn[standard]>=0.34.0",
 ]
 
 [dependency-groups]

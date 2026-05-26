@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "parse:pdf": "uv run deep-dig-parse-pdf",
+    "parse:pdf": "uv run python -m desktop_parser.parse_pdf",
     "tauri": "tauri"
   },
   "dependencies": {

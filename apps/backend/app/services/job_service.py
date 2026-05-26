@@ -22,7 +22,7 @@ def _redis_settings() -> RedisSettings:
 
 
 async def ensure_user(db: AsyncSession, user_id, email: str | None) -> User:
-    user = await db.get(User, user_id)
+    user = await db.scalar(select(User).where(User.id == user_id).options(selectinload(User.settings)))
     if user is None:
         user = User(id=user_id, email=email, monthly_quota=settings.free_monthly_quota)
         user.settings = UserSettings(user_id=user_id)

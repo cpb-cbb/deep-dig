@@ -96,6 +96,33 @@ def parse_hierarchical_simple(raw: dict[str, Any]) -> ParsedResult:
 
 @register("material_extraction")
 def parse_material_extraction(raw: dict[str, Any]) -> ParsedResult:
+    payload = raw.get("extract_property_table")
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    if isinstance(payload, dict) and isinstance(payload.get("samples"), list):
+        samples: list[Sample] = []
+        for sample_data in payload["samples"]:
+            if not isinstance(sample_data, dict):
+                continue
+            sample_name = sample_data.get("sample_name") or sample_data.get("name") or "Unknown"
+            properties = sample_data.get("properties", {})
+            if not isinstance(properties, dict):
+                properties = {}
+            props = {
+                name: Property(
+                    value=str(value.get("value", "")),
+                    unit=str(value.get("unit", "")),
+                    remark=str(value.get("remark", "")),
+                    source=str(value.get("source", "")),
+                    method=str(value.get("method", "")),
+                )
+                for name, value in properties.items()
+                if isinstance(value, dict)
+            }
+            if props:
+                samples.append(Sample(name=str(sample_name), properties=props))
+        return ParsedResult(success=bool(samples), samples=samples, headers=_headers(samples), error=None if samples else "No samples parsed")
+
     sample_outputs = raw.get("extract_sample_data", [])
     samples: list[Sample] = []
     for item in sample_outputs:

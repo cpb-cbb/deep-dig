@@ -29,7 +29,7 @@ text is submitted to the backend.
 ```bash
 cd apps/desktop
 uv sync
-uv run deep-dig-parse-pdf /absolute/path/to/input.pdf
+uv run python -m desktop_parser.parse_pdf /absolute/path/to/input.pdf
 ```
 
 The command prints JSON with `fileName`, `fileHash`, `text`, `textFormat`, and
@@ -38,7 +38,8 @@ payload and contains Markdown.
 
 The Tauri desktop UI uses the same parser through the `parse_pdf_to_markdown`
 native command. During development, run the app from `apps/desktop` so the
-native command can execute `uv run deep-dig-parse-pdf` in that directory:
+native command can execute `uv run python -m desktop_parser.parse_pdf` in that
+directory:
 
 ```bash
 cd apps/desktop

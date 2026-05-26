@@ -8,14 +8,26 @@ type ExtractionMode = { id: string; name: string; description: string; ui_config
 export function App() {
   const [token, setToken] = useState('');
   const [modes, setModes] = useState<ExtractionMode[]>([]);
-  const [modeId, setModeId] = useState('code_friendly');
+  const [modeId, setModeId] = useState('material_extraction');
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [status, setStatus] = useState('Ready');
+  const [propertiesText, setPropertiesText] = useState('BET surface area\ntotal pore volume\nspecific capacitance');
+
+  function requestedProperties() {
+    return propertiesText
+      .split(/[\n,，]/)
+      .map((property) => property.trim())
+      .filter(Boolean);
+  }
 
   async function loadModes() {
     const data = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'}/workflows`).then((r) => r.json());
     setModes(data);
-    if (data[0]) setModeId(data[0].id);
+    if (data.some((mode: ExtractionMode) => mode.id === 'material_extraction')) {
+      setModeId('material_extraction');
+    } else if (data[0]) {
+      setModeId(data[0].id);
+    }
   }
 
   async function selectFiles() {
@@ -31,12 +43,16 @@ export function App() {
 
   async function submitJob() {
     setStatus('Submitting job...');
+    const properties = requestedProperties();
+    const config = modeId === 'material_extraction' ? { properties } : {};
     const result = await apiFetch<{ job_id: string }>('/jobs', token, {
       method: 'POST',
-      body: JSON.stringify({ workflow_id: modeId, config: {}, items: files.map((file) => ({ file_name: file.fileName, file_hash: file.fileHash, text: file.text })) }),
+      body: JSON.stringify({ workflow_id: modeId, config, items: files.map((file) => ({ file_name: file.fileName, file_hash: file.fileHash, text: file.text })) }),
     });
     setStatus(`Queued job ${result.job_id}`);
   }
+
+  const canSubmit = Boolean(token && files.length > 0 && (modeId !== 'material_extraction' || requestedProperties().length > 0));
 
   return (
     <main className="shell">
@@ -52,14 +68,25 @@ export function App() {
         <textarea value={token} onChange={(event) => setToken(event.target.value)} placeholder="Supabase access token for development" />
         <label>Extraction mode</label>
         <select value={modeId} onChange={(event) => setModeId(event.target.value)}>
-          {modes.length === 0 && <option value="code_friendly">Fast structured extraction</option>}
+          {modes.length === 0 && <option value="material_extraction">Material Science Data Extraction</option>}
           {modes.map((mode) => <option key={mode.id} value={mode.id}>{mode.name}</option>)}
         </select>
+        {modeId === 'material_extraction' && (
+          <>
+            <label>Properties to extract</label>
+            <textarea
+              className="properties"
+              value={propertiesText}
+              onChange={(event) => setPropertiesText(event.target.value)}
+              placeholder="One property per line, or separate with commas"
+            />
+          </>
+        )}
         <button className="drop" type="button" onClick={selectFiles}>
           <FileText size={24} />
           <span>Select PDFs</span>
         </button>
-        <button disabled={!token || files.length === 0} onClick={submitJob}><Play size={18} /> Start extraction</button>
+        <button disabled={!canSubmit} onClick={submitJob}><Play size={18} /> Start extraction</button>
       </section>
       <section className="panel">
         <strong>{status}</strong>

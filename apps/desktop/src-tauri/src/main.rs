@@ -26,7 +26,7 @@ fn parse_pdf_to_markdown(path: String) -> Result<ParsedPdf, String> {
         .to_path_buf();
 
     let output = Command::new("uv")
-        .args(["run", "deep-dig-parse-pdf"])
+        .args(["run", "python", "-m", "desktop_parser.parse_pdf"])
         .arg(&pdf_path)
         .current_dir(desktop_dir)
         .output()
