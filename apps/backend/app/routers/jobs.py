@@ -6,13 +6,14 @@ from uuid import UUID
 from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, Header
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt import AuthUser, verify_supabase_jwt
 from app.config import settings
 from app.db import get_db
 from app.schemas import JobCreate, JobCreateOut, JobItemOut, JobOut
+from app.services.exporter import XLSX_MEDIA_TYPE, build_job_xlsx, export_filename
 from app.services.job_service import cancel_job, create_job, ensure_user, get_owned_job, list_jobs
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -31,32 +32,68 @@ async def post_job(
 ) -> JobCreateOut:
     user = await ensure_user(db, auth.id, auth.email)
     job = await create_job(db, user, payload, x_client_version)
-    return JobCreateOut(job_id=job.id, queued_items=job.total_items, estimated_seconds=job.total_items * 30)
+    return JobCreateOut(
+        job_id=job.id, queued_items=job.total_items, estimated_seconds=job.total_items * 30
+    )
 
 
 @router.get("", response_model=list[JobOut])
-async def get_jobs(auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)) -> list[JobOut]:
+async def get_jobs(
+    auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
+) -> list[JobOut]:
     return [job_out(job) for job in await list_jobs(db, auth.id)]
 
 
 @router.get("/{job_id}", response_model=JobOut)
-async def get_job(job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)) -> JobOut:
+async def get_job(
+    job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
+) -> JobOut:
     return job_out(await get_owned_job(db, auth.id, job_id))
 
 
 @router.get("/{job_id}/items", response_model=list[JobItemOut])
-async def get_job_items(job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)) -> list[JobItemOut]:
+async def get_job_items(
+    job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
+) -> list[JobItemOut]:
     job = await get_owned_job(db, auth.id, job_id)
-    return [JobItemOut.model_validate(item, from_attributes=True) for item in sorted(job.items, key=lambda item: item.ordinal)]
+    return [
+        JobItemOut.model_validate(item, from_attributes=True)
+        for item in sorted(job.items, key=lambda item: item.ordinal)
+    ]
+
+
+@router.get(
+    "/{job_id}/export.xlsx",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {XLSX_MEDIA_TYPE: {"schema": {"type": "string", "format": "binary"}}},
+            "description": "Excel workbook export",
+        }
+    },
+)
+async def export_job_xlsx(
+    job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
+) -> Response:
+    job = await get_owned_job(db, auth.id, job_id)
+    return Response(
+        build_job_xlsx(job),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{export_filename(job)}"'},
+    )
 
 
 @router.post("/{job_id}/cancel", response_model=JobOut)
-async def post_cancel(job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)) -> JobOut:
+async def post_cancel(
+    job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
+) -> JobOut:
     return job_out(await cancel_job(db, auth.id, job_id))
 
 
 @router.get("/{job_id}/events")
-async def job_events(job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)) -> StreamingResponse:
+async def job_events(
+    job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
+) -> StreamingResponse:
     await get_owned_job(db, auth.id, job_id)
 
     async def stream():

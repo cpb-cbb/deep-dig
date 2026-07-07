@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 
 export type ParsedFile = {
   fileName: string;
@@ -16,4 +16,15 @@ export async function selectAndParsePdfs(): Promise<ParsedFile[]> {
   });
   const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
   return Promise.all(paths.map((path) => invoke<ParsedFile>('parse_pdf_to_markdown', { path })));
+}
+
+export async function pickExcelSavePath(defaultName: string): Promise<string | null> {
+  return save({
+    defaultPath: defaultName,
+    filters: [{ name: 'Excel workbook', extensions: ['xlsx'] }],
+  });
+}
+
+export async function saveBytesToPath(path: string, bytes: Uint8Array): Promise<void> {
+  await invoke('write_binary_file', { path, bytes: Array.from(bytes) });
 }

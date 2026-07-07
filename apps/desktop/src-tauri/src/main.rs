@@ -45,10 +45,15 @@ fn parse_pdf_to_markdown(path: String) -> Result<ParsedPdf, String> {
         .map_err(|error| format!("Local PDF parser returned invalid JSON: {error}"))
 }
 
+#[tauri::command]
+fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, bytes).map_err(|error| format!("Failed to save file: {error}"))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![parse_pdf_to_markdown])
+        .invoke_handler(tauri::generate_handler![parse_pdf_to_markdown, write_binary_file])
         .run(tauri::generate_context!())
         .expect("error while running Deep Dig desktop app");
 }
