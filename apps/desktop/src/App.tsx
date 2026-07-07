@@ -68,6 +68,7 @@ type MeOut = {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const DEV_TOKEN = (import.meta.env.VITE_DEV_AUTH_TOKEN as string | undefined) ?? (import.meta.env.DEV ? 'dev' : '');
+const isDevAuth = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
 function createSupabaseAuthClient() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
@@ -77,7 +78,7 @@ function createSupabaseAuthClient() {
 const supabase = createSupabaseAuthClient();
 
 export function App() {
-  const [token, setToken] = useState(() => (supabase ? '' : DEV_TOKEN));
+  const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [profile, setProfile] = useState<MeOut | null>(null);
@@ -209,7 +210,11 @@ export function App() {
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase) return;
+    if (!supabase) {
+      setToken(DEV_TOKEN);
+      setStatus('Signed in with local dev auth.');
+      return;
+    }
     setStatus('Signing in...');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -223,10 +228,10 @@ export function App() {
   async function signOut() {
     if (supabase) {
       await supabase.auth.signOut();
-      setToken('');
     } else {
-      setToken(DEV_TOKEN);
+      setStatus('Signed out.');
     }
+    setToken('');
     setProfile(null);
     setJobs([]);
     setItems([]);
@@ -338,29 +343,17 @@ export function App() {
             </div>
           </div>
 
-          {supabase ? (
-            !token.trim() && (
-              <form className="auth-form" onSubmit={signIn}>
-                <label>Email</label>
-                <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" />
-                <label>Password</label>
-                <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" />
-                <button type="submit" disabled={!email || !password}>
-                  <LogIn size={18} />
-                  Sign in
-                </button>
-              </form>
-            )
-          ) : (
-            <div className="field">
-              <label>Bearer token</label>
-              <textarea
-                className="token-input"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                placeholder="Supabase access token or dev"
-              />
-            </div>
+          {!token.trim() && (
+            <form className="auth-form" onSubmit={signIn}>
+              <label>Email</label>
+              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder={isDevAuth ? 'dev@deepdig.local' : undefined} />
+              <label>Password</label>
+              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder={isDevAuth ? 'Any password in dev mode' : undefined} />
+              <button type="submit" disabled={supabase ? !email || !password : false}>
+                <LogIn size={18} />
+                {isDevAuth ? 'Sign in with dev auth' : 'Sign in'}
+              </button>
+            </form>
           )}
 
           <div className="field">
