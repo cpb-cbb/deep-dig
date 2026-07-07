@@ -93,9 +93,17 @@ class Property(BaseModel):
     method: str = ""
 
 
+class Measurement(BaseModel):
+    conditions: dict[str, Property] = Field(default_factory=dict)
+    performance: dict[str, Property] = Field(default_factory=dict)
+    remark: str = ""
+    source: str = ""
+
+
 class Sample(BaseModel):
     name: str
-    properties: dict[str, Property]
+    properties: dict[str, Property] = Field(default_factory=dict)
+    measurements: list[Measurement] = Field(default_factory=list)
 
 
 class ParsedResult(BaseModel):

@@ -18,6 +18,9 @@ HEADERS = [
     "File Hash",
     "Item Status",
     "Sample",
+    "Record Type",
+    "Measurement Index",
+    "Property Group",
     "Property",
     "Value",
     "Unit",
@@ -29,8 +32,8 @@ HEADERS = [
 
 
 def build_job_xlsx(job: Job) -> bytes:
-    rows = [HEADERS, *_result_rows(job)]
-    sheet_xml = _worksheet_xml(rows)
+    result_rows = [HEADERS, *_result_rows(job)]
+    summary_rows = _summary_rows(job)
     buffer = BytesIO()
     with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", _content_types_xml())
@@ -38,7 +41,8 @@ def build_job_xlsx(job: Job) -> bytes:
         archive.writestr("xl/workbook.xml", _workbook_xml())
         archive.writestr("xl/_rels/workbook.xml.rels", _workbook_rels_xml())
         archive.writestr("xl/styles.xml", _styles_xml())
-        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+        archive.writestr("xl/worksheets/sheet1.xml", _worksheet_xml(result_rows))
+        archive.writestr("xl/worksheets/sheet2.xml", _worksheet_xml(summary_rows))
     return buffer.getvalue()
 
 
@@ -55,43 +59,116 @@ def _result_rows(job: Job) -> list[list[Any]]:
             for sample in samples:
                 rows.extend(_sample_rows(job, item, sample))
             continue
-        rows.append(_base_row(job, item) + ["", "", "", "", "", "", "", _item_error(item, parsed)])
+        rows.append(_base_row(job, item) + ["", "", "", "", "", "", "", "", "", "", _item_error(item, parsed)])
     return rows
 
 
 def _sample_rows(job: Job, item: JobItem, sample: Any) -> list[list[Any]]:
     if not isinstance(sample, dict):
-        return [_base_row(job, item) + ["", "", "", "", "", "", "", "Invalid sample result"]]
+        return [_base_row(job, item) + ["", "", "", "", "", "", "", "", "", "", "Invalid sample result"]]
 
     sample_name = sample.get("name", "")
     properties = sample.get("properties", {})
-    if not isinstance(properties, dict) or not properties:
-        return [
-            _base_row(job, item) + [sample_name, "", "", "", "", "", "", "No properties parsed"]
-        ]
+    measurements = sample.get("measurements", [])
 
     rows: list[list[Any]] = []
-    for property_name, property_value in properties.items():
-        if isinstance(property_value, dict):
+    if isinstance(properties, dict):
+        for property_name, property_value in properties.items():
             rows.append(
-                _base_row(job, item)
-                + [
+                _property_row(
+                    job,
+                    item,
                     sample_name,
-                    property_name,
-                    property_value.get("value", ""),
-                    property_value.get("unit", ""),
-                    property_value.get("remark", ""),
-                    property_value.get("source", ""),
-                    property_value.get("method", ""),
+                    "sample",
                     "",
-                ]
+                    "sample_properties",
+                    property_name,
+                    property_value,
+                )
             )
-        else:
-            rows.append(
-                _base_row(job, item)
-                + [sample_name, property_name, property_value, "", "", "", "", ""]
-            )
+    if isinstance(measurements, list):
+        for index, measurement in enumerate(measurements, start=1):
+            if not isinstance(measurement, dict):
+                continue
+            for property_name, property_value in _dict_items(measurement.get("conditions", {})):
+                rows.append(
+                    _property_row(
+                        job,
+                        item,
+                        sample_name,
+                        "measurement",
+                        index,
+                        "conditions",
+                        property_name,
+                        property_value,
+                        measurement,
+                    )
+                )
+            for property_name, property_value in _dict_items(measurement.get("performance", {})):
+                rows.append(
+                    _property_row(
+                        job,
+                        item,
+                        sample_name,
+                        "measurement",
+                        index,
+                        "performance",
+                        property_name,
+                        property_value,
+                        measurement,
+                    )
+                )
+    if not rows:
+        rows.append(_base_row(job, item) + [sample_name, "", "", "", "", "", "", "", "", "", "No properties parsed"])
     return rows
+
+
+def _dict_items(value: Any):
+    if isinstance(value, dict):
+        return value.items()
+    return []
+
+
+def _property_row(
+    job: Job,
+    item: JobItem,
+    sample_name: Any,
+    record_type: str,
+    measurement_index: Any,
+    property_group: str,
+    property_name: Any,
+    property_value: Any,
+    measurement: dict[str, Any] | None = None,
+) -> list[Any]:
+    if isinstance(property_value, dict):
+        remark = property_value.get("remark", "") or (measurement or {}).get("remark", "")
+        source = property_value.get("source", "") or (measurement or {}).get("source", "")
+        return _base_row(job, item) + [
+            sample_name,
+            record_type,
+            measurement_index,
+            property_group,
+            property_name,
+            property_value.get("value", ""),
+            property_value.get("unit", ""),
+            remark,
+            source,
+            property_value.get("method", ""),
+            "",
+        ]
+    return _base_row(job, item) + [
+        sample_name,
+        record_type,
+        measurement_index,
+        property_group,
+        property_name,
+        property_value,
+        "",
+        "",
+        (measurement or {}).get("source", ""),
+        "",
+        "",
+    ]
 
 
 def _base_row(job: Job, item: JobItem) -> list[Any]:
@@ -108,17 +185,99 @@ def _item_error(item: JobItem, parsed: Any) -> str:
     return "No parsed result"
 
 
+def _summary_rows(job: Job) -> list[list[Any]]:
+    properties = _requested_properties(job)
+    rows = [["Sample", *properties]]
+    for item in sorted(job.items, key=lambda value: value.ordinal):
+        parsed = item.parsed_result or {}
+        samples = parsed.get("samples") if isinstance(parsed, dict) else None
+        if not isinstance(samples, list):
+            continue
+        for sample in samples:
+            if not isinstance(sample, dict):
+                continue
+            rows.extend(_summary_sample_rows(sample, properties))
+    return rows
+
+
+def _requested_properties(job: Job) -> list[str]:
+    config = job.config if isinstance(job.config, dict) else {}
+    configured = config.get("properties")
+    if isinstance(configured, list):
+        return [str(value) for value in configured if str(value).strip()]
+
+    seen: set[str] = set()
+    properties: list[str] = []
+    for item in sorted(job.items, key=lambda value: value.ordinal):
+        parsed = item.parsed_result or {}
+        headers = parsed.get("headers") if isinstance(parsed, dict) else None
+        if not isinstance(headers, list):
+            continue
+        for header in headers:
+            name = str(header)
+            if name and name not in seen:
+                seen.add(name)
+                properties.append(name)
+    return properties
+
+
+def _summary_sample_rows(sample: dict[str, Any], properties: list[str]) -> list[list[Any]]:
+    sample_name = sample.get("name", "")
+    sample_properties = sample.get("properties", {})
+    if not isinstance(sample_properties, dict):
+        sample_properties = {}
+    measurements = sample.get("measurements", [])
+    if not isinstance(measurements, list) or not measurements:
+        return [[sample_name, *[_summary_property_value(property_name, sample_properties) for property_name in properties]]]
+
+    rows: list[list[Any]] = []
+    for measurement in measurements:
+        if not isinstance(measurement, dict):
+            continue
+        conditions = measurement.get("conditions", {})
+        performance = measurement.get("performance", {})
+        if not isinstance(conditions, dict):
+            conditions = {}
+        if not isinstance(performance, dict):
+            performance = {}
+        rows.append(
+            [
+                sample_name,
+                *[
+                    _summary_property_value(property_name, sample_properties, conditions, performance)
+                    for property_name in properties
+                ],
+            ]
+        )
+    return rows or [[sample_name, *[_summary_property_value(property_name, sample_properties) for property_name in properties]]]
+
+
+def _summary_property_value(property_name: str, *groups: dict[str, Any]) -> str:
+    for group in groups:
+        value = group.get(property_name)
+        if isinstance(value, dict):
+            raw_value = str(value.get("value", "")).strip()
+            unit = str(value.get("unit", "")).strip()
+            if raw_value and unit:
+                return f"{raw_value} {unit}"
+            return raw_value or unit
+        if value not in (None, ""):
+            return str(value)
+    return ""
+
+
 def _worksheet_xml(rows: list[list[Any]]) -> str:
     row_xml = "\n".join(_row_xml(index, row) for index, row in enumerate(rows, start=1))
+    column_count = max((len(row) for row in rows), default=1)
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
   <sheetFormatPr defaultRowHeight="15"/>
-  <cols>{_columns_xml(len(HEADERS))}</cols>
+  <cols>{_columns_xml(column_count)}</cols>
   <sheetData>
 {row_xml}
   </sheetData>
-  <autoFilter ref="A1:{_column_name(len(HEADERS))}{max(len(rows), 1)}"/>
+  <autoFilter ref="A1:{_column_name(column_count)}{max(len(rows), 1)}"/>
 </worksheet>"""
 
 
@@ -151,7 +310,7 @@ def _column_name(index: int) -> str:
 
 
 def _columns_xml(count: int) -> str:
-    widths = [38, 24, 36, 18, 14, 24, 28, 18, 12, 32, 24, 24, 36]
+    widths = [38, 24, 36, 18, 14, 24, 16, 18, 18, 28, 18, 12, 32, 24, 24, 36]
     columns = []
     for index in range(1, count + 1):
         width = widths[index - 1] if index <= len(widths) else 18
@@ -166,6 +325,7 @@ def _content_types_xml() -> str:
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>"""
 
@@ -180,7 +340,10 @@ def _root_rels_xml() -> str:
 def _workbook_xml() -> str:
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="Results" sheetId="1" r:id="rId1"/></sheets>
+  <sheets>
+    <sheet name="Results" sheetId="1" r:id="rId1"/>
+    <sheet name="Summary" sheetId="2" r:id="rId2"/>
+  </sheets>
 </workbook>"""
 
 
@@ -188,7 +351,8 @@ def _workbook_rels_xml() -> str:
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>"""
 
 

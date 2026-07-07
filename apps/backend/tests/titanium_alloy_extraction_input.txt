@@ -1,0 +1,39 @@
+Title: Heat treatment and tensile response of additively manufactured Ti-6Al-4V alloy
+
+Experimental summary:
+Two titanium alloy samples were evaluated in this study. Sample Ti64-STA was a
+laser powder bed fusion Ti-6Al-4V alloy solution treated at 955 C for 1 h,
+water quenched, and aged at 550 C for 4 h. Sample Ti64-ANN was built using the
+same powder and scan strategy but annealed at 800 C for 2 h followed by furnace
+cooling.
+
+Microstructure and phase characterization:
+Ti64-STA showed a fine alpha prime/alpha plus beta transformed structure. The
+prior-beta grain size was 78 um and the alpha lath thickness was 0.82 um. Its
+measured oxygen content was 0.17 wt%. Ti64-ANN showed coarser alpha plus beta
+laths with a prior-beta grain size of 84 um and an alpha lath thickness of
+1.45 um. Its measured oxygen content was 0.16 wt%. Phase analysis by XRD
+confirmed alpha plus beta titanium in both samples.
+
+Table 1. Shared sample-level properties.
+Sample      Alloy      Heat treatment                         Prior-beta grain size  Alpha lath thickness  Oxygen content
+Ti64-STA    Ti-6Al-4V  955 C/1 h WQ + 550 C/4 h aging          78 um                  0.82 um               0.17 wt%
+Ti64-ANN    Ti-6Al-4V  800 C/2 h furnace cooling               84 um                  1.45 um               0.16 wt%
+
+Mechanical testing:
+Room-temperature tensile tests were performed according to ASTM E8 using
+sub-size specimens. Two strain rates were used for each sample. The tensile
+direction was parallel to the build direction.
+
+Table 2. Tensile properties under different strain rates.
+Sample      Temperature  Strain rate  Yield strength  Ultimate tensile strength  Elongation  Method
+Ti64-STA    25 C         1e-3 s-1      1045 MPa        1128 MPa                   10.6 %      ASTM E8 tensile test
+Ti64-STA    25 C         1e-2 s-1      1088 MPa        1162 MPa                   8.9 %       ASTM E8 tensile test
+Ti64-ANN    25 C         1e-3 s-1      930 MPa         1005 MPa                   14.8 %      ASTM E8 tensile test
+Ti64-ANN    25 C         1e-2 s-1      958 MPa         1032 MPa                   12.7 %      ASTM E8 tensile test
+
+Fatigue testing:
+Axial fatigue tests were conducted at room temperature with a stress ratio
+R = 0.1 and a frequency of 20 Hz. Ti64-STA survived 1.2e6 cycles at a maximum
+stress of 620 MPa. Ti64-ANN survived 1.8e6 cycles at a maximum stress of
+560 MPa.

@@ -16,3 +16,4 @@ __pycache__/
 *.sqlite
 *.db
 apps/desktop/src-tauri/target/
+literature/

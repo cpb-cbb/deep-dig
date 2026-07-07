@@ -1,0 +1,711 @@
+{
+  "input_file": "tests/titanium_alloy_extraction_input.txt",
+  "requested_properties": [
+    "Alloy",
+    "Heat treatment",
+    "Prior-beta grain size",
+    "Alpha lath thickness",
+    "Oxygen content",
+    "Temperature",
+    "Strain rate",
+    "Yield strength",
+    "Ultimate tensile strength",
+    "Elongation",
+    "Fatigue life",
+    "Maximum stress",
+    "Stress ratio",
+    "Frequency"
+  ],
+  "provider_summary": {
+    "llm_provider": "openai_compatible",
+    "llm_compat_model": "deepseek-v4-flash",
+    "llm_compat_base_url_set": true,
+    "llm_compat_api_key_set": true,
+    "llm_openrouter_key_set": true,
+    "llm_anthropic_key_set": true
+  },
+  "raw_results": {
+    "extract_property_table": {
+      "samples": [
+        {
+          "sample_name": "Ti64-STA",
+          "sample_properties": {
+            "Alloy": {
+              "value": "Ti-6Al-4V",
+              "unit": "",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Heat treatment": {
+              "value": "955 C/1 h WQ + 550 C/4 h aging",
+              "unit": "",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Prior-beta grain size": {
+              "value": "78",
+              "unit": "um",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Alpha lath thickness": {
+              "value": "0.82",
+              "unit": "um",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Oxygen content": {
+              "value": "0.17",
+              "unit": "wt%",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            }
+          },
+          "measurements": [
+            {
+              "conditions": {
+                "Temperature": {
+                  "value": "25",
+                  "unit": "C",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                },
+                "Strain rate": {
+                  "value": "1e-3",
+                  "unit": "s-1",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                }
+              },
+              "performance": {
+                "Yield strength": {
+                  "value": "1045",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Ultimate tensile strength": {
+                  "value": "1128",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Elongation": {
+                  "value": "10.6",
+                  "unit": "%",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                }
+              },
+              "remark": "",
+              "source": "Table 2"
+            },
+            {
+              "conditions": {
+                "Temperature": {
+                  "value": "25",
+                  "unit": "C",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                },
+                "Strain rate": {
+                  "value": "1e-2",
+                  "unit": "s-1",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                }
+              },
+              "performance": {
+                "Yield strength": {
+                  "value": "1088",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Ultimate tensile strength": {
+                  "value": "1162",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Elongation": {
+                  "value": "8.9",
+                  "unit": "%",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                }
+              },
+              "remark": "",
+              "source": "Table 2"
+            },
+            {
+              "conditions": {
+                "Stress ratio": {
+                  "value": "0.1",
+                  "unit": "",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": ""
+                },
+                "Frequency": {
+                  "value": "20",
+                  "unit": "Hz",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": ""
+                }
+              },
+              "performance": {
+                "Fatigue life": {
+                  "value": "1.2e6",
+                  "unit": "cycles",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": "Axial fatigue test"
+                },
+                "Maximum stress": {
+                  "value": "620",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": "Axial fatigue test"
+                }
+              },
+              "remark": "",
+              "source": "Fatigue testing paragraph"
+            }
+          ]
+        },
+        {
+          "sample_name": "Ti64-ANN",
+          "sample_properties": {
+            "Alloy": {
+              "value": "Ti-6Al-4V",
+              "unit": "",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Heat treatment": {
+              "value": "800 C/2 h furnace cooling",
+              "unit": "",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Prior-beta grain size": {
+              "value": "84",
+              "unit": "um",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Alpha lath thickness": {
+              "value": "1.45",
+              "unit": "um",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            },
+            "Oxygen content": {
+              "value": "0.16",
+              "unit": "wt%",
+              "remark": "",
+              "source": "Table 1",
+              "method": ""
+            }
+          },
+          "measurements": [
+            {
+              "conditions": {
+                "Temperature": {
+                  "value": "25",
+                  "unit": "C",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                },
+                "Strain rate": {
+                  "value": "1e-3",
+                  "unit": "s-1",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                }
+              },
+              "performance": {
+                "Yield strength": {
+                  "value": "930",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Ultimate tensile strength": {
+                  "value": "1005",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Elongation": {
+                  "value": "14.8",
+                  "unit": "%",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                }
+              },
+              "remark": "",
+              "source": "Table 2"
+            },
+            {
+              "conditions": {
+                "Temperature": {
+                  "value": "25",
+                  "unit": "C",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                },
+                "Strain rate": {
+                  "value": "1e-2",
+                  "unit": "s-1",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": ""
+                }
+              },
+              "performance": {
+                "Yield strength": {
+                  "value": "958",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Ultimate tensile strength": {
+                  "value": "1032",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                },
+                "Elongation": {
+                  "value": "12.7",
+                  "unit": "%",
+                  "remark": "",
+                  "source": "Table 2",
+                  "method": "ASTM E8 tensile test"
+                }
+              },
+              "remark": "",
+              "source": "Table 2"
+            },
+            {
+              "conditions": {
+                "Stress ratio": {
+                  "value": "0.1",
+                  "unit": "",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": ""
+                },
+                "Frequency": {
+                  "value": "20",
+                  "unit": "Hz",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": ""
+                }
+              },
+              "performance": {
+                "Fatigue life": {
+                  "value": "1.8e6",
+                  "unit": "cycles",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": "Axial fatigue test"
+                },
+                "Maximum stress": {
+                  "value": "560",
+                  "unit": "MPa",
+                  "remark": "",
+                  "source": "Fatigue testing paragraph",
+                  "method": "Axial fatigue test"
+                }
+              },
+              "remark": "",
+              "source": "Fatigue testing paragraph"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "parsed_result": {
+    "success": true,
+    "samples": [
+      {
+        "name": "Ti64-STA",
+        "properties": {
+          "Alloy": {
+            "value": "Ti-6Al-4V",
+            "unit": "",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Heat treatment": {
+            "value": "955 C/1 h WQ + 550 C/4 h aging",
+            "unit": "",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Prior-beta grain size": {
+            "value": "78",
+            "unit": "um",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Alpha lath thickness": {
+            "value": "0.82",
+            "unit": "um",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Oxygen content": {
+            "value": "0.17",
+            "unit": "wt%",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          }
+        },
+        "measurements": [
+          {
+            "conditions": {
+              "Temperature": {
+                "value": "25",
+                "unit": "C",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              },
+              "Strain rate": {
+                "value": "1e-3",
+                "unit": "s-1",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              }
+            },
+            "performance": {
+              "Yield strength": {
+                "value": "1045",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Ultimate tensile strength": {
+                "value": "1128",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Elongation": {
+                "value": "10.6",
+                "unit": "%",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              }
+            },
+            "remark": "",
+            "source": "Table 2"
+          },
+          {
+            "conditions": {
+              "Temperature": {
+                "value": "25",
+                "unit": "C",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              },
+              "Strain rate": {
+                "value": "1e-2",
+                "unit": "s-1",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              }
+            },
+            "performance": {
+              "Yield strength": {
+                "value": "1088",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Ultimate tensile strength": {
+                "value": "1162",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Elongation": {
+                "value": "8.9",
+                "unit": "%",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              }
+            },
+            "remark": "",
+            "source": "Table 2"
+          },
+          {
+            "conditions": {
+              "Stress ratio": {
+                "value": "0.1",
+                "unit": "",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": ""
+              },
+              "Frequency": {
+                "value": "20",
+                "unit": "Hz",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": ""
+              }
+            },
+            "performance": {
+              "Fatigue life": {
+                "value": "1.2e6",
+                "unit": "cycles",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": "Axial fatigue test"
+              },
+              "Maximum stress": {
+                "value": "620",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": "Axial fatigue test"
+              }
+            },
+            "remark": "",
+            "source": "Fatigue testing paragraph"
+          }
+        ]
+      },
+      {
+        "name": "Ti64-ANN",
+        "properties": {
+          "Alloy": {
+            "value": "Ti-6Al-4V",
+            "unit": "",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Heat treatment": {
+            "value": "800 C/2 h furnace cooling",
+            "unit": "",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Prior-beta grain size": {
+            "value": "84",
+            "unit": "um",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Alpha lath thickness": {
+            "value": "1.45",
+            "unit": "um",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          },
+          "Oxygen content": {
+            "value": "0.16",
+            "unit": "wt%",
+            "remark": "",
+            "source": "Table 1",
+            "method": ""
+          }
+        },
+        "measurements": [
+          {
+            "conditions": {
+              "Temperature": {
+                "value": "25",
+                "unit": "C",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              },
+              "Strain rate": {
+                "value": "1e-3",
+                "unit": "s-1",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              }
+            },
+            "performance": {
+              "Yield strength": {
+                "value": "930",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Ultimate tensile strength": {
+                "value": "1005",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Elongation": {
+                "value": "14.8",
+                "unit": "%",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              }
+            },
+            "remark": "",
+            "source": "Table 2"
+          },
+          {
+            "conditions": {
+              "Temperature": {
+                "value": "25",
+                "unit": "C",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              },
+              "Strain rate": {
+                "value": "1e-2",
+                "unit": "s-1",
+                "remark": "",
+                "source": "Table 2",
+                "method": ""
+              }
+            },
+            "performance": {
+              "Yield strength": {
+                "value": "958",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Ultimate tensile strength": {
+                "value": "1032",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              },
+              "Elongation": {
+                "value": "12.7",
+                "unit": "%",
+                "remark": "",
+                "source": "Table 2",
+                "method": "ASTM E8 tensile test"
+              }
+            },
+            "remark": "",
+            "source": "Table 2"
+          },
+          {
+            "conditions": {
+              "Stress ratio": {
+                "value": "0.1",
+                "unit": "",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": ""
+              },
+              "Frequency": {
+                "value": "20",
+                "unit": "Hz",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": ""
+              }
+            },
+            "performance": {
+              "Fatigue life": {
+                "value": "1.8e6",
+                "unit": "cycles",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": "Axial fatigue test"
+              },
+              "Maximum stress": {
+                "value": "560",
+                "unit": "MPa",
+                "remark": "",
+                "source": "Fatigue testing paragraph",
+                "method": "Axial fatigue test"
+              }
+            },
+            "remark": "",
+            "source": "Fatigue testing paragraph"
+          }
+        ]
+      }
+    ],
+    "headers": [
+      "Alloy",
+      "Heat treatment",
+      "Prior-beta grain size",
+      "Alpha lath thickness",
+      "Oxygen content",
+      "Temperature",
+      "Strain rate",
+      "Yield strength",
+      "Ultimate tensile strength",
+      "Elongation",
+      "Stress ratio",
+      "Frequency",
+      "Fatigue life",
+      "Maximum stress"
+    ],
+    "error": null
+  }
+}

@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from app.schemas import ParsedResult, Property, Sample
+from app.schemas import Measurement, ParsedResult, Property, Sample
 
 Processor = Callable[[dict[str, Any]], ParsedResult]
 PROCESSORS: dict[str, Processor] = {}
@@ -26,12 +26,46 @@ def process_result(processor_name: str, raw: dict[str, Any]) -> ParsedResult:
 def _headers(samples: list[Sample]) -> list[str]:
     seen: set[str] = set()
     ordered: list[str] = []
+
+    def add(key: str) -> None:
+        if key not in seen:
+            seen.add(key)
+            ordered.append(key)
+
     for sample in samples:
         for key in sample.properties:
-            if key not in seen:
-                seen.add(key)
-                ordered.append(key)
+            add(key)
+        for measurement in sample.measurements:
+            for key in measurement.conditions:
+                add(key)
+            for key in measurement.performance:
+                add(key)
     return ordered
+
+
+def _properties_from_mapping(values: Any) -> dict[str, Property]:
+    if not isinstance(values, dict):
+        return {}
+    return {
+        name: Property(
+            value=_clean_property_field(value.get("value", "")),
+            unit=_clean_property_field(value.get("unit", "")),
+            remark=_clean_property_field(value.get("remark", "")),
+            source=_clean_property_field(value.get("source", "")),
+            method=_clean_property_field(value.get("method", "")),
+        )
+        for name, value in values.items()
+        if isinstance(value, dict)
+    }
+
+
+def _clean_property_field(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if text.upper() in {"", "N/A", "NA", "NONE", "NULL", "NOT REPORTED"}:
+        return ""
+    return text
 
 
 @register("generic")
@@ -105,22 +139,27 @@ def parse_material_extraction(raw: dict[str, Any]) -> ParsedResult:
             if not isinstance(sample_data, dict):
                 continue
             sample_name = sample_data.get("sample_name") or sample_data.get("name") or "Unknown"
-            properties = sample_data.get("properties", {})
-            if not isinstance(properties, dict):
-                properties = {}
-            props = {
-                name: Property(
-                    value=str(value.get("value", "")),
-                    unit=str(value.get("unit", "")),
-                    remark=str(value.get("remark", "")),
-                    source=str(value.get("source", "")),
-                    method=str(value.get("method", "")),
-                )
-                for name, value in properties.items()
-                if isinstance(value, dict)
-            }
-            if props:
-                samples.append(Sample(name=str(sample_name), properties=props))
+            properties = sample_data.get("sample_properties", sample_data.get("properties", {}))
+            props = _properties_from_mapping(properties)
+            measurements: list[Measurement] = []
+            measurement_data = sample_data.get("measurements", [])
+            if isinstance(measurement_data, list):
+                for item in measurement_data:
+                    if not isinstance(item, dict):
+                        continue
+                    conditions = _properties_from_mapping(item.get("conditions", {}))
+                    performance = _properties_from_mapping(item.get("performance", {}))
+                    if conditions or performance:
+                        measurements.append(
+                            Measurement(
+                                conditions=conditions,
+                                performance=performance,
+                                remark=str(item.get("remark", "")),
+                                source=str(item.get("source", "")),
+                            )
+                        )
+            if props or measurements:
+                samples.append(Sample(name=str(sample_name), properties=props, measurements=measurements))
         return ParsedResult(success=bool(samples), samples=samples, headers=_headers(samples), error=None if samples else "No samples parsed")
 
     sample_outputs = raw.get("extract_sample_data", [])
@@ -128,16 +167,6 @@ def parse_material_extraction(raw: dict[str, Any]) -> ParsedResult:
     for item in sample_outputs:
         sample_name = item.get("sample_name", "Unknown")
         data = item.get("data", {})
-        props = {
-            name: Property(
-                value=str(value.get("value", "")),
-                unit=str(value.get("unit", "")),
-                remark=str(value.get("remark", "")),
-                source=str(value.get("source", "")),
-                method=str(value.get("method", "")),
-            )
-            for name, value in data.items()
-            if isinstance(value, dict)
-        }
+        props = _properties_from_mapping(data)
         samples.append(Sample(name=sample_name, properties=props))
     return ParsedResult(success=bool(samples), samples=samples, headers=_headers(samples))
