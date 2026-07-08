@@ -167,6 +167,26 @@ textarea {
   padding-bottom: 14px;
 }
 
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.auth-tabs button {
+  min-width: 0;
+  border-color: #c9d3d0;
+  background: #fff;
+  color: #172026;
+  padding-inline: 8px;
+}
+
+.auth-tabs button.selected {
+  border-color: #1f6f62;
+  background: #e5f3ef;
+  color: #1f6f62;
+}
+
 .token-input {
   min-height: 70px;
 }
@@ -180,6 +200,44 @@ textarea {
   border: 1px dashed #9cadb0;
   background: #fbfdfd;
   color: #172026;
+}
+
+.parse-summary {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #edf1f0;
+  border-radius: 8px;
+  background: #f7faf9;
+  padding: 12px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.parse-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.parse-progress > span,
+.storage-path {
+  min-width: 0;
+  overflow: hidden;
+  color: #647076;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compose-actions {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 10px;
 }
 
 .file-list,
@@ -416,5 +474,11 @@ textarea {
 
   .detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-grid,
+  .compose-actions,
+  .parse-progress {
+    grid-template-columns: 1fr;
   }
 }

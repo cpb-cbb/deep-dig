@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
+    "dev:start": "scripts/deep-dig-dev.sh start",
+    "dev:stop": "scripts/deep-dig-dev.sh stop",
+    "dev:restart": "scripts/deep-dig-dev.sh restart",
+    "dev:status": "scripts/deep-dig-dev.sh status",
     "dev:desktop": "pnpm --filter @deep-dig/desktop dev",
     "build:desktop": "pnpm --filter @deep-dig/desktop build",
     "generate:types": "openapi-typescript apps/backend/openapi.json -o packages/shared-types/src/openapi.d.ts"
