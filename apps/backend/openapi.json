@@ -808,6 +808,17 @@
             ],
             "title": "Error Message"
           },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
           "finished_at": {
             "anyOf": [
               {
@@ -832,6 +843,7 @@
           "parsed_result",
           "error_code",
           "error_message",
+          "duration_ms",
           "finished_at"
         ],
         "title": "JobItemOut"

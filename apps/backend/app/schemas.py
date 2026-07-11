@@ -82,6 +82,7 @@ class JobItemOut(BaseModel):
     parsed_result: dict[str, Any] | None
     error_code: str | None
     error_message: str | None
+    duration_ms: int | None
     finished_at: datetime | None
 
 

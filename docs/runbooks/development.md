@@ -26,6 +26,25 @@ ITEM_QUEUE_EXPIRY_SECONDS=604800
 Effective extraction concurrency is approximately the number of worker replicas
 multiplied by `WORKER_MAX_JOBS`. Keep it within the LLM provider's rate limits.
 
+### VS Code debugging
+
+1. Open the repository root in VS Code and install the recommended Python and
+   Python Debugger extensions when prompted.
+2. Make sure `apps/backend/.env` contains the database, Redis, authentication,
+   and LLM settings you want to test.
+3. Open **Run and Debug** (`Shift+Command+D` on macOS).
+4. Select **Backend: API + Worker** and press `F5`.
+
+The compound debug configuration starts Redis and launches FastAPI plus the ARQ
+worker under the debugger. Breakpoints in API code stop the FastAPI debug
+session; breakpoints in extraction code such as `extract_item` stop the Worker
+debug session. Stopping the compound session stops both Python processes. The
+Redis background task can be stopped from **Terminal → Run Task → Terminate
+Task** when it is no longer needed.
+
+Use **Backend: FastAPI** or **Backend: Worker** when only one process needs to be
+debugged and Redis is already running.
+
 For a platform that provides an OpenAI-compatible API, configure:
 
 ```env

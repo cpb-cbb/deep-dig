@@ -136,3 +136,4 @@ async def test_unsuccessful_parsed_result_marks_only_that_item_failed(monkeypatc
     finish.assert_awaited_once()
     assert finish.await_args.kwargs["status"] == "failed"
     assert finish.await_args.kwargs["error_code"] == "RESULT_FORMAT_ERROR"
+    assert finish.await_args.kwargs["duration_ms"] >= 0

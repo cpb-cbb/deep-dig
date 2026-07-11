@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -32,6 +33,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
         return
 
     workflow_id, config = claimed
+    started_at = time.monotonic()
     try:
         result = await _run_with_retries(ctx["redis"], job_uuid, workflow_id, config, text)
     except asyncio.CancelledError:
@@ -50,6 +52,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
             status="failed",
             error_code=_error_code(exc),
             error_message=_error_message(exc),
+            duration_ms=_elapsed_ms(started_at),
         )
         return
 
@@ -69,6 +72,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
             parsed_result=parsed_result,
             error_code="RESULT_FORMAT_ERROR",
             error_message=error_message,
+            duration_ms=_elapsed_ms(started_at),
         )
         return
 
@@ -79,6 +83,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
         status="done",
         raw_results=result.get("raw_results"),
         parsed_result=parsed_result,
+        duration_ms=_elapsed_ms(started_at),
     )
 
 
@@ -202,6 +207,7 @@ async def _finish_item(
     parsed_result: Any = None,
     error_code: str | None = None,
     error_message: str | None = None,
+    duration_ms: int | None = None,
 ) -> None:
     job_done = False
     event_data: dict[str, Any] | None = None
@@ -225,6 +231,7 @@ async def _finish_item(
         item.status = status
         item.error_code = error_code
         item.error_message = error_message
+        item.duration_ms = duration_ms
         item.finished_at = now
         if status == "done":
             job.completed_items += 1
@@ -259,6 +266,10 @@ async def _finish_item(
     await _safe_publish(redis, f"job:{job_id}:events", "progress", event_data)
     if job_done:
         await _safe_publish(redis, f"job:{job_id}:events", "job_done", event_data)
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, round((time.monotonic() - started_at) * 1000))
 
 
 async def _safe_publish(redis: Any, channel: str, event: str, data: dict[str, Any]) -> None:

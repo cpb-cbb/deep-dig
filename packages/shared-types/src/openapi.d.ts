@@ -259,6 +259,8 @@ export interface components {
             error_code: string | null;
             /** Error Message */
             error_message: string | null;
+            /** Duration Ms */
+            duration_ms: number | null;
             /** Finished At */
             finished_at: string | null;
         };

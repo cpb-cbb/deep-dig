@@ -12,6 +12,7 @@ import {
   Play,
   RefreshCw,
   UserPlus,
+  X,
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
@@ -53,6 +54,7 @@ type JobItemOut = {
   parsed_result: ParsedResult | null;
   error_code: string | null;
   error_message: string | null;
+  duration_ms: number | null;
   finished_at: string | null;
 };
 
@@ -105,6 +107,7 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
@@ -118,6 +121,10 @@ export function App() {
       && !isParsing
       && !isSubmitting
       && (modeId !== 'material_extraction' || requestedProperties().length > 0),
+  );
+  const selectedJobStats = useMemo(
+    () => selectedJob ? calculateJobStats(selectedJob, items) : null,
+    [selectedJob, items],
   );
 
   useEffect(() => {
@@ -164,6 +171,15 @@ export function App() {
     }
     void loadJobItems(selectedJobId);
   }, [selectedJobId, token]);
+
+  useEffect(() => {
+    if (!detailsOpen) return undefined;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDetailsOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [detailsOpen]);
 
   function requestedProperties() {
     return propertiesText
@@ -417,6 +433,11 @@ export function App() {
     }
   }
 
+  function showJobDetails(jobId: string) {
+    setSelectedJobId(jobId);
+    setDetailsOpen(true);
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -582,12 +603,15 @@ export function App() {
                     <div className="progress-track" aria-label={`${progressPercent(job)} percent complete`}>
                       <span style={{ width: `${progressPercent(job)}%` }} />
                     </div>
-                    <small>
-                      {job.completed_items + job.failed_items}/{job.total_items} processed · {new Date(job.created_at).toLocaleString()}
-                    </small>
+                    <div className="job-facts">
+                      <span>{job.completed_items} succeeded</span>
+                      <span>{job.failed_items} failed</span>
+                      <span>{formatDuration(jobDurationMs(job))}</span>
+                    </div>
+                    <small>{new Date(job.created_at).toLocaleString()}</small>
                   </div>
                   <div className="job-actions">
-                    <button className="secondary-button" type="button" onClick={() => setSelectedJobId(job.id)} title="Show details">
+                    <button className="secondary-button" type="button" onClick={() => showJobDetails(job.id)} title="Show details">
                       <ListChecks size={16} />
                       Details
                     </button>
@@ -615,63 +639,92 @@ export function App() {
         </section>
       </section>
 
-      <section className="panel details-panel">
-        <div className="panel-title">
-          <div>
-            <h2>Task details</h2>
-            <span>{selectedJob ? `${shortId(selectedJob.id)} · ${selectedJob.status}` : 'No task selected'}</span>
-          </div>
-          {selectedJob && (
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={!isTerminal(selectedJob.status) || busyJobId === selectedJob.id}
-              onClick={() => void saveJobExport(selectedJob)}
-              title="Choose save path"
-            >
-              <FolderOutput size={18} />
-              Save as
-            </button>
-          )}
-        </div>
+      <footer className="status-line panel">
+        <strong>{status}</strong>
+        {savedPath && <span>Last saved: {savedPath}</span>}
+      </footer>
 
-        {selectedJob ? (
-          <>
+      {detailsOpen && selectedJob && selectedJobStats && (
+        <div className="details-backdrop" role="presentation" onMouseDown={() => setDetailsOpen(false)}>
+          <section
+            aria-labelledby="task-details-title"
+            aria-modal="true"
+            className="details-drawer"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="details-header">
+              <div>
+                <span className="eyebrow">Extraction report / {shortId(selectedJob.id)}</span>
+                <h2 id="task-details-title">Task details</h2>
+                <p>{workflowName(selectedJob.workflow_id, modes)} · started {formatDateTime(selectedJob.started_at ?? selectedJob.created_at)}</p>
+              </div>
+              <div className="details-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={!isTerminal(selectedJob.status) || busyJobId === selectedJob.id}
+                  onClick={() => void saveJobExport(selectedJob)}
+                >
+                  <Download size={17} />
+                  Export Excel
+                </button>
+                <button className="close-button" type="button" onClick={() => setDetailsOpen(false)} aria-label="Close task details">
+                  <X size={20} />
+                </button>
+              </div>
+            </header>
+
+            <div className="report-status">
+              <span className={`status-badge ${selectedJob.status}`}>{selectedJob.status}</span>
+              <div className="progress-track" aria-label={`${progressPercent(selectedJob)} percent complete`}>
+                <span style={{ width: `${progressPercent(selectedJob)}%` }} />
+              </div>
+              <strong>{progressPercent(selectedJob)}%</strong>
+            </div>
+
             <div className="detail-grid">
-              <Metric label="Total" value={selectedJob.total_items} />
-              <Metric label="Completed" value={selectedJob.completed_items} />
-              <Metric label="Failed" value={selectedJob.failed_items} />
-              <Metric label="Progress" value={`${progressPercent(selectedJob)}%`} />
+              <ReportMetric label="Processing time" value={formatDuration(selectedJobStats.elapsedMs)} hint="Wall-clock duration" />
+              <ReportMetric label="Average time" value={formatDuration(selectedJobStats.averageItemMs)} hint={`Across ${selectedJobStats.timedItems} measured files`} />
+              <ReportMetric label="Succeeded" value={selectedJob.completed_items} hint={`${selectedJobStats.successRate}% of processed files`} tone="success" />
+              <ReportMetric label="Failed" value={selectedJob.failed_items} hint={selectedJob.failed_items ? 'Review errors below' : 'No extraction errors'} tone={selectedJob.failed_items ? 'danger' : undefined} />
+              <ReportMetric label="Samples found" value={selectedJobStats.sampleCount} hint={`From ${selectedJobStats.filesWithSamples} files`} tone="accent" />
+              <ReportMetric label="Processed" value={`${selectedJobStats.processed}/${selectedJob.total_items}`} hint={`${selectedJobStats.remaining} remaining`} />
+            </div>
+
+            <div className="results-heading">
+              <div>
+                <span className="eyebrow">Per-file results</span>
+                <h3>Documents</h3>
+              </div>
+              <span>{items.length} files · {selectedJobStats.totalCharacters.toLocaleString()} text chars</span>
             </div>
 
             <div className="item-table">
               <div className="item-header">
                 <span>File</span>
                 <span>Status</span>
+                <span>Time</span>
                 <span>Samples</span>
                 <span>Result</span>
               </div>
               {items.length === 0 ? (
-                <p className="empty">No item details loaded.</p>
+                <p className="empty table-empty">Loading item details…</p>
               ) : items.map((item) => (
                 <div className="item-row" key={item.id}>
-                  <span>{item.file_name}</span>
+                  <span title={item.file_name}>{item.file_name}</span>
                   <span className={`status-badge ${item.status}`}>{item.status}</span>
-                  <span>{sampleCount(item)}</span>
-                  <span>{item.error_message ?? item.parsed_result?.error ?? resultLabel(item)}</span>
+                  <span>{formatDuration(item.duration_ms)}</span>
+                  <strong>{sampleCount(item)}</strong>
+                  <span title={item.error_message ?? item.parsed_result?.error ?? resultLabel(item)}>
+                    {item.error_message ?? item.parsed_result?.error ?? resultLabel(item)}
+                  </span>
                 </div>
               ))}
             </div>
-          </>
-        ) : (
-          <p className="empty">Select a task to inspect its item results.</p>
-        )}
-
-        <footer className="status-line">
-          <strong>{status}</strong>
-          {savedPath && <span>Last saved: {savedPath}</span>}
-        </footer>
-      </section>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
@@ -681,6 +734,26 @@ function Metric({ label, value }: { label: string; value: string | number }) {
     <div className="metric">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ReportMetric({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  hint: string;
+  tone?: 'success' | 'danger' | 'accent';
+}) {
+  return (
+    <div className={`report-metric${tone ? ` ${tone}` : ''}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{hint}</small>
     </div>
   );
 }
@@ -704,6 +777,49 @@ function shortId(id: string) {
 
 function sampleCount(item: JobItemOut) {
   return item.parsed_result?.samples?.length ?? 0;
+}
+
+function calculateJobStats(job: JobOut, items: JobItemOut[]) {
+  const durations = items
+    .map((item) => item.duration_ms)
+    .filter((duration): duration is number => duration !== null && duration >= 0);
+  const processed = job.completed_items + job.failed_items;
+  return {
+    elapsedMs: jobDurationMs(job),
+    averageItemMs: durations.length
+      ? Math.round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length)
+      : null,
+    timedItems: durations.length,
+    processed,
+    remaining: Math.max(0, job.total_items - processed),
+    successRate: processed ? Math.round((job.completed_items / processed) * 100) : 0,
+    sampleCount: items.reduce((sum, item) => sum + sampleCount(item), 0),
+    filesWithSamples: items.filter((item) => sampleCount(item) > 0).length,
+    totalCharacters: items.reduce((sum, item) => sum + item.text_length, 0),
+  };
+}
+
+function jobDurationMs(job: JobOut) {
+  if (!job.started_at) return null;
+  const started = new Date(job.started_at).getTime();
+  const finished = job.finished_at ? new Date(job.finished_at).getTime() : Date.now();
+  return Math.max(0, finished - started);
+}
+
+function formatDuration(milliseconds: number | null) {
+  if (milliseconds === null || !Number.isFinite(milliseconds)) return '—';
+  if (milliseconds < 1000) return '<1s';
+  const totalSeconds = Math.round(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function formatDateTime(value: string | null) {
+  return value ? new Date(value).toLocaleString() : '—';
 }
 
 function resultLabel(item: JobItemOut) {
