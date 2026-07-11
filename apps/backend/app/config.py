@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     free_batch_limit: int = 10
     free_concurrent_jobs: int = 1
     max_text_chars: int = 200_000
+    worker_max_jobs: int = 8
+    item_job_timeout_seconds: int = 600
+    item_max_tries: int = 3
+    item_retry_base_seconds: float = 2.0
+    item_queue_expiry_seconds: int = 604_800
 
 
 @lru_cache

@@ -102,3 +102,51 @@ def test_build_job_xlsx_flattens_parsed_results():
     assert "0.5 A g-1" in summary
     assert "280 F g-1" in summary
     assert export_filename(job) == f"deep-dig-{job_id}.xlsx"
+
+
+def test_build_job_xlsx_keeps_failed_items_as_error_rows():
+    job_id = uuid4()
+    job = Job(
+        id=job_id,
+        workflow_id="material_extraction",
+        status="completed",
+        total_items=2,
+        completed_items=1,
+        failed_items=1,
+        config={"properties": ["BET surface area"]},
+    )
+    job.items = [
+        JobItem(
+            id=uuid4(),
+            job_id=job_id,
+            ordinal=0,
+            file_name="good.pdf",
+            file_hash="good12345678",
+            text_length=100,
+            status="done",
+            parsed_result={
+                "success": True,
+                "samples": [{"name": "Sample A", "properties": {}, "measurements": []}],
+            },
+        ),
+        JobItem(
+            id=uuid4(),
+            job_id=job_id,
+            ordinal=1,
+            file_name="bad.pdf",
+            file_hash="bad123456789",
+            text_length=100,
+            status="failed",
+            error_code="RESULT_FORMAT_ERROR",
+            error_message="Invalid model output\x00",
+        ),
+    ]
+
+    content = build_job_xlsx(job)
+
+    with ZipFile(BytesIO(content)) as archive:
+        sheet = archive.read("xl/worksheets/sheet1.xml").decode()
+    assert "good.pdf" in sheet
+    assert "bad.pdf" in sheet
+    assert "Invalid model output" in sheet
+    assert "\x00" not in sheet

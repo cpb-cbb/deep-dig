@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -13,7 +14,7 @@ from app.config import settings
 from app.errors import AppError
 from app.models import Job, JobItem, User, UserSettings
 from app.schemas import JobCreate
-from app.services.quota import reserve_quota
+from app.services.quota import reserve_quota, rollback_quota
 from app.services.workflow_registry import get_workflow
 
 
@@ -33,7 +34,9 @@ async def ensure_user(db: AsyncSession, user_id, email: str | None) -> User:
     return user
 
 
-async def create_job(db: AsyncSession, user: User, payload: JobCreate, client_version: str | None) -> Job:
+async def create_job(
+    db: AsyncSession, user: User, payload: JobCreate, client_version: str | None
+) -> tuple[Job, int]:
     get_workflow(payload.workflow_id)
     if len(payload.items) > settings.free_batch_limit and user.plan == "free":
         raise AppError(400, "BATCH_LIMIT_EXCEEDED", "Batch size exceeds plan limit")
@@ -53,25 +56,93 @@ async def create_job(db: AsyncSession, user: User, payload: JobCreate, client_ve
     )
     db.add(job)
     await db.flush()
-    for index, item in enumerate(payload.items):
-        db.add(
-            JobItem(
-                job_id=job.id,
-                ordinal=index,
-                file_name=item.file_name,
-                file_hash=item.file_hash,
-                text_length=len(item.text),
-                raw_text=item.text if store_raw_text else None,
-            )
+    queued_items: list[tuple[JobItem, str]] = []
+    for index, item_payload in enumerate(payload.items):
+        item = JobItem(
+            job_id=job.id,
+            ordinal=index,
+            file_name=item_payload.file_name,
+            file_hash=item_payload.file_hash,
+            text_length=len(item_payload.text),
+            raw_text=item_payload.text if store_raw_text else None,
         )
+        db.add(item)
+        queued_items.append((item, item_payload.text))
+    await db.flush()
     await db.commit()
 
-    redis = await create_pool(_redis_settings())
+    enqueue_errors = await _enqueue_item_jobs(job, queued_items)
+    if enqueue_errors:
+        await _record_enqueue_failures(db, job.id, enqueue_errors)
+        await db.refresh(job)
+    return job, len(queued_items) - len(enqueue_errors)
+
+
+async def _enqueue_item_jobs(
+    job: Job, items: list[tuple[JobItem, str]]
+) -> dict[UUID, Exception]:
+    errors: dict[UUID, Exception] = {}
     try:
-        await redis.enqueue_job("extract_job", str(job.id), [item.text for item in payload.items])
+        redis = await create_pool(_redis_settings())
+    except Exception as exc:
+        return {item.id: exc for item, _ in items}
+
+    async def enqueue(item: JobItem, text: str) -> tuple[UUID, Exception | None]:
+        try:
+            await redis.enqueue_job(
+                "extract_item",
+                str(job.id),
+                str(item.id),
+                text,
+                _job_id=f"extract-item-{item.id}",
+                _expires=settings.item_queue_expiry_seconds,
+            )
+            return item.id, None
+        except Exception as exc:
+            return item.id, exc
+
+    try:
+        # Limit enqueue fan-out so a very large batch does not create thousands of
+        # simultaneous Redis pipelines in the API process.
+        for start in range(0, len(items), 100):
+            chunk = items[start : start + 100]
+            results = await asyncio.gather(*(enqueue(item, text) for item, text in chunk))
+            errors.update({item_id: error for item_id, error in results if error is not None})
     finally:
         await redis.close()
-    return job
+    return errors
+
+
+async def _record_enqueue_failures(
+    db: AsyncSession, job_id: UUID, errors: dict[UUID, Exception]
+) -> None:
+    job = await db.scalar(select(Job).where(Job.id == job_id).with_for_update())
+    if job is None:
+        return
+    items = list(
+        await db.scalars(
+            select(JobItem).where(JobItem.job_id == job_id, JobItem.id.in_(errors)).with_for_update()
+        )
+    )
+    failed = 0
+    now = datetime.now(timezone.utc)
+    for item in items:
+        if item.status != "pending":
+            continue
+        error = errors[item.id]
+        item.status = "failed"
+        item.error_code = "QUEUE_ENQUEUE_FAILED"
+        item.error_message = str(error) or error.__class__.__name__
+        item.finished_at = now
+        failed += 1
+    if not failed:
+        return
+    job.failed_items += failed
+    if job.failed_items >= job.total_items:
+        job.status = "failed"
+        job.finished_at = now
+    await rollback_quota(db, job.user_id, failed)
+    await db.commit()
 
 
 async def list_jobs(db: AsyncSession, user_id) -> list[Job]:
@@ -87,16 +158,41 @@ async def get_owned_job(db: AsyncSession, user_id, job_id: UUID) -> Job:
 
 
 async def cancel_job(db: AsyncSession, user_id, job_id: UUID) -> Job:
-    job = await get_owned_job(db, user_id, job_id)
+    job = await db.scalar(
+        select(Job)
+        .where(Job.id == job_id, Job.user_id == user_id)
+        .options(selectinload(Job.items))
+        .with_for_update()
+    )
+    if job is None:
+        raise AppError(404, "JOB_NOT_FOUND", "Job not found")
     if job.status in {"completed", "failed", "cancelled"}:
         return job
+    now = datetime.now(timezone.utc)
     job.status = "cancelled"
-    job.finished_at = datetime.now(timezone.utc)
+    job.finished_at = now
+    cancelled_items = 0
+    for item in job.items:
+        if item.status != "pending":
+            continue
+        item.status = "cancelled"
+        item.error_code = "JOB_CANCELLED"
+        item.error_message = "Task was cancelled before extraction started"
+        item.finished_at = now
+        cancelled_items += 1
+    if cancelled_items:
+        await rollback_quota(db, job.user_id, cancelled_items)
     await db.commit()
-    redis = await create_pool(_redis_settings())
+    redis = None
     try:
+        redis = await create_pool(_redis_settings())
         await redis.set(f"job:{job.id}:cancelled", "1")
         await redis.publish(f"job:{job.id}:events", '{"event":"job_done","data":{"status":"cancelled"}}')
+    except Exception:
+        # The committed database status is authoritative. Queued workers check it
+        # before starting even when the live Redis notification is unavailable.
+        pass
     finally:
-        await redis.close()
+        if redis is not None:
+            await redis.close()
     return job

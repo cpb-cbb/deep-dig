@@ -10,6 +10,11 @@ from xml.sax.saxutils import escape
 from app.models import Job, JobItem
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+MAX_EXCEL_ROWS = 1_048_576
+
+
+class ExportTooLargeError(ValueError):
+    pass
 
 HEADERS = [
     "Job ID",
@@ -34,6 +39,11 @@ HEADERS = [
 def build_job_xlsx(job: Job) -> bytes:
     result_rows = [HEADERS, *_result_rows(job)]
     summary_rows = _summary_rows(job)
+    if len(result_rows) > MAX_EXCEL_ROWS or len(summary_rows) > MAX_EXCEL_ROWS:
+        raise ExportTooLargeError(
+            "Excel export exceeds the 1,048,576-row worksheet limit; "
+            "reduce the batch size or requested properties"
+        )
     buffer = BytesIO()
     with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", _content_types_xml())
@@ -53,13 +63,34 @@ def export_filename(job: Job) -> str:
 def _result_rows(job: Job) -> list[list[Any]]:
     rows: list[list[Any]] = []
     for item in sorted(job.items, key=lambda value: value.ordinal):
-        parsed = item.parsed_result or {}
-        samples = parsed.get("samples") if isinstance(parsed, dict) else None
-        if isinstance(samples, list) and samples:
-            for sample in samples:
-                rows.extend(_sample_rows(job, item, sample))
-            continue
-        rows.append(_base_row(job, item) + ["", "", "", "", "", "", "", "", "", "", _item_error(item, parsed)])
+        try:
+            parsed = item.parsed_result or {}
+            samples = parsed.get("samples") if isinstance(parsed, dict) else None
+            if isinstance(samples, list) and samples:
+                for sample in samples:
+                    rows.extend(_sample_rows(job, item, sample))
+                continue
+            rows.append(
+                _base_row(job, item)
+                + ["", "", "", "", "", "", "", "", "", "", _item_error(item, parsed)]
+            )
+        except Exception as exc:
+            rows.append(
+                _base_row(job, item)
+                + [
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    f"EXPORT_ITEM_ERROR: {exc}",
+                ]
+            )
     return rows
 
 
@@ -182,6 +213,8 @@ def _item_error(item: JobItem, parsed: Any) -> str:
         return item.error_code
     if isinstance(parsed, dict) and parsed.get("error"):
         return str(parsed["error"])
+    if item.status == "cancelled":
+        return "Task was cancelled"
     return "No parsed result"
 
 
@@ -189,14 +222,19 @@ def _summary_rows(job: Job) -> list[list[Any]]:
     properties = _requested_properties(job)
     rows = [["Sample", *properties]]
     for item in sorted(job.items, key=lambda value: value.ordinal):
-        parsed = item.parsed_result or {}
-        samples = parsed.get("samples") if isinstance(parsed, dict) else None
-        if not isinstance(samples, list):
-            continue
-        for sample in samples:
-            if not isinstance(sample, dict):
+        try:
+            parsed = item.parsed_result or {}
+            samples = parsed.get("samples") if isinstance(parsed, dict) else None
+            if not isinstance(samples, list):
                 continue
-            rows.extend(_summary_sample_rows(sample, properties))
+            for sample in samples:
+                if not isinstance(sample, dict):
+                    continue
+                rows.extend(_summary_sample_rows(sample, properties))
+        except Exception:
+            # The detailed Results sheet already records per-item export errors.
+            # A malformed item must not prevent other summaries from exporting.
+            continue
     return rows
 
 
@@ -297,7 +335,7 @@ def _cell_xml(row_index: int, col_index: int, value: Any) -> str:
 
 def _clean_cell_value(value: Any) -> str:
     text = "" if value is None else str(value)
-    text = sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", "", text)
+    text = sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF\uFFFE\uFFFF]", "", text)
     return text[:32767]
 
 

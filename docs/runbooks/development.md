@@ -8,6 +8,24 @@
 4. Start API with `uv run uvicorn app.main:app --reload --port 8000`.
 5. Start worker with `uv run arq app.workers.arq_worker.WorkerSettings`.
 
+Each submitted document is queued as an independent `extract_item` job. A worker
+immediately takes another document when one of its execution slots becomes free,
+including documents belonging to the same parent task. Run more worker processes
+or replicas to increase capacity; Redis distributes item jobs across them.
+
+Worker concurrency and retry behavior can be tuned with:
+
+```env
+WORKER_MAX_JOBS=8
+ITEM_JOB_TIMEOUT_SECONDS=600
+ITEM_MAX_TRIES=3
+ITEM_RETRY_BASE_SECONDS=2
+ITEM_QUEUE_EXPIRY_SECONDS=604800
+```
+
+Effective extraction concurrency is approximately the number of worker replicas
+multiplied by `WORKER_MAX_JOBS`. Keep it within the LLM provider's rate limits.
+
 For a platform that provides an OpenAI-compatible API, configure:
 
 ```env

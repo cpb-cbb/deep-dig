@@ -12,8 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.jwt import AuthUser, verify_supabase_jwt
 from app.config import settings
 from app.db import get_db
+from app.errors import AppError
 from app.schemas import JobCreate, JobCreateOut, JobItemOut, JobOut
-from app.services.exporter import XLSX_MEDIA_TYPE, build_job_xlsx, export_filename
+from app.services.exporter import (
+    XLSX_MEDIA_TYPE,
+    ExportTooLargeError,
+    build_job_xlsx,
+    export_filename,
+)
 from app.services.job_service import cancel_job, create_job, ensure_user, get_owned_job, list_jobs
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -31,9 +37,9 @@ async def post_job(
     x_client_version: str | None = Header(default=None),
 ) -> JobCreateOut:
     user = await ensure_user(db, auth.id, auth.email)
-    job = await create_job(db, user, payload, x_client_version)
+    job, queued_items = await create_job(db, user, payload, x_client_version)
     return JobCreateOut(
-        job_id=job.id, queued_items=job.total_items, estimated_seconds=job.total_items * 30
+        job_id=job.id, queued_items=queued_items, estimated_seconds=queued_items * 30
     )
 
 
@@ -76,8 +82,12 @@ async def export_job_xlsx(
     job_id: UUID, auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
 ) -> Response:
     job = await get_owned_job(db, auth.id, job_id)
+    try:
+        content = build_job_xlsx(job)
+    except ExportTooLargeError as exc:
+        raise AppError(422, "EXPORT_TOO_LARGE", str(exc)) from exc
     return Response(
-        build_job_xlsx(job),
+        content,
         media_type=XLSX_MEDIA_TYPE,
         headers={"Content-Disposition": f'attachment; filename="{export_filename(job)}"'},
     )
