@@ -58,6 +58,7 @@ class JobCreateOut(BaseModel):
     job_id: UUID
     queued_items: int
     estimated_seconds: int
+    reused: bool = False
 
 
 class JobOut(BaseModel):

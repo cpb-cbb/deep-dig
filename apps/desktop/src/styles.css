@@ -477,6 +477,10 @@ textarea {
   padding: 0;
 }
 
+.spinning {
+  animation: spin 800ms linear infinite;
+}
+
 .metric {
   display: grid;
   gap: 4px;
@@ -716,6 +720,10 @@ textarea {
 
 @keyframes slide-in {
   from { transform: translateX(30px); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 1060px) {

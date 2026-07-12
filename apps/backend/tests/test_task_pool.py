@@ -5,6 +5,7 @@ import pytest
 
 from app.errors import AppError
 from app.models import Job, JobItem
+from app.schemas import JobCreate, JobCreateItem
 from app.services import job_service
 from app.workers import arq_worker
 
@@ -56,6 +57,63 @@ def make_job_with_items(count: int) -> tuple[Job, list[tuple[JobItem, str]]]:
         for index in range(count)
     ]
     return job, items
+
+
+def make_job_payload() -> JobCreate:
+    return JobCreate(
+        workflow_id="material_extraction",
+        config={"properties": ["surface area"]},
+        items=[JobCreateItem(file_name="paper.pdf", file_hash="hash-00000001", text="text")],
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_job_reuses_matching_idempotency_key_without_enqueuing(monkeypatch):
+    user_id = uuid4()
+    user = job_service.User(id=user_id, email="user@example.com", plan="free")
+    existing = Job(
+        id=uuid4(),
+        user_id=user_id,
+        workflow_id="material_extraction",
+        status="pending",
+        total_items=1,
+        completed_items=0,
+        failed_items=0,
+        config={},
+        idempotency_key="idempotency-key-0001",
+    )
+    db = AsyncMock()
+    db.scalar = AsyncMock(side_effect=[user, existing])
+    enqueue = AsyncMock()
+    monkeypatch.setattr(job_service, "_enqueue_item_jobs", enqueue)
+
+    job, queued_items, reused = await job_service.create_job(
+        db,
+        user,
+        make_job_payload(),
+        "desktop-test",
+        "idempotency-key-0001",
+    )
+
+    assert job is existing
+    assert queued_items == 0
+    assert reused is True
+    enqueue.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_job_enforces_free_concurrent_job_limit(monkeypatch):
+    user_id = uuid4()
+    user = job_service.User(id=user_id, email="user@example.com", plan="free")
+    db = AsyncMock()
+    db.scalar = AsyncMock(side_effect=[user, 1])
+    monkeypatch.setattr(job_service.settings, "free_concurrent_jobs", 1)
+
+    with pytest.raises(AppError) as exc_info:
+        await job_service.create_job(db, user, make_job_payload(), "desktop-test")
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "CONCURRENT_JOB_LIMIT"
 
 
 @pytest.mark.asyncio

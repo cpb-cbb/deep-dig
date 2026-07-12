@@ -15,8 +15,8 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { API_BASE, apiDownload, apiFetch } from './api';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { apiDownload, apiFetch, apiPublicFetch } from './api';
 import { chooseParsedOutputDir, parsePdfToMarkdown, pickExcelSavePath, saveBytesToPath, selectPdfFiles, type ParsedFile, type SelectedPdf } from './native';
 
 type ExtractionMode = {
@@ -75,6 +75,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const DEV_TOKEN = (import.meta.env.VITE_DEV_AUTH_TOKEN as string | undefined) ?? (import.meta.env.DEV ? 'dev' : '');
 const isDevAuth = !SUPABASE_URL || !SUPABASE_ANON_KEY;
+const ACTIVE_JOB_REFRESH_MS = 6_000;
 
 function createSupabaseAuthClient() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
@@ -106,8 +107,28 @@ export function App() {
   const [parsedStorageDir, setParsedStorageDir] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
+  const [isLoadingModes, setIsLoadingModes] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isSelectingFiles, setIsSelectingFiles] = useState(false);
+  const [isSelectingOutput, setIsSelectingOutput] = useState(false);
+  const [isAppVisible, setIsAppVisible] = useState(
+    () => document.visibilityState === 'visible' && document.hasFocus(),
+  );
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const refreshInFlightRef = useRef(false);
+  const lastManualRefreshRef = useRef(0);
+  const modesInFlightRef = useRef(false);
+  const lastModesRefreshRef = useRef(0);
+  const itemLoadsInFlightRef = useRef(new Set<string>());
+  const submitInFlightRef = useRef(false);
+  const pendingIdempotencyKeyRef = useRef<string | null>(null);
+  const pendingSubmissionFingerprintRef = useRef<string | null>(null);
+  const authInFlightRef = useRef(false);
+  const parseInFlightRef = useRef(false);
+  const fileDialogInFlightRef = useRef(false);
+  const outputDialogInFlightRef = useRef(false);
+  const jobActionsInFlightRef = useRef(new Set<string>());
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
@@ -125,6 +146,10 @@ export function App() {
   const selectedJobStats = useMemo(
     () => selectedJob ? calculateJobStats(selectedJob, items) : null,
     [selectedJob, items],
+  );
+  const hasActiveJobs = useMemo(
+    () => jobs.some((job) => job.status === 'pending' || job.status === 'running'),
+    [jobs],
   );
 
   useEffect(() => {
@@ -156,13 +181,29 @@ export function App() {
   }, [token]);
 
   useEffect(() => {
-    if (!token.trim()) return undefined;
+    const handleVisibilityChange = () => {
+      setIsAppVisible(document.visibilityState === 'visible' && document.hasFocus());
+    };
+    const handleFocus = () => setIsAppVisible(document.visibilityState === 'visible');
+    const handleBlur = () => setIsAppVisible(false);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!token.trim() || !hasActiveJobs || !isAppVisible) return undefined;
     const interval = window.setInterval(() => {
       void refreshJobs(true);
       if (selectedJobId) void loadJobItems(selectedJobId, true);
-    }, 2500);
+    }, ACTIVE_JOB_REFRESH_MS);
     return () => window.clearInterval(interval);
-  }, [token, selectedJobId]);
+  }, [token, selectedJobId, hasActiveJobs, isAppVisible]);
 
   useEffect(() => {
     if (!selectedJobId || !token.trim()) {
@@ -188,11 +229,18 @@ export function App() {
       .filter(Boolean);
   }
 
-  async function loadModes() {
+  async function loadModes(manual = false) {
+    const now = Date.now();
+    if (modesInFlightRef.current) return;
+    if (manual && now - lastModesRefreshRef.current < 3000) {
+      setStatus('Extraction modes were just refreshed.');
+      return;
+    }
+    modesInFlightRef.current = true;
+    if (manual) lastModesRefreshRef.current = now;
+    setIsLoadingModes(true);
     try {
-      const response = await fetch(`${API_BASE}/workflows`);
-      if (!response.ok) throw new Error(response.statusText || 'Failed to load workflows');
-      const data = (await response.json()) as ExtractionMode[];
+      const data = await apiPublicFetch<ExtractionMode[]>('/workflows');
       setModes(data);
       if (data.some((mode) => mode.id === 'material_extraction')) {
         setModeId('material_extraction');
@@ -201,6 +249,9 @@ export function App() {
       }
     } catch (error) {
       setStatus(errorMessage(error));
+    } finally {
+      modesInFlightRef.current = false;
+      setIsLoadingModes(false);
     }
   }
 
@@ -214,8 +265,19 @@ export function App() {
 
   async function refreshJobs(silent = false) {
     if (!token.trim()) return;
+    if (refreshInFlightRef.current) {
+      if (!silent) setStatus('A task refresh is already in progress.');
+      return;
+    }
+    const now = Date.now();
+    if (!silent && now - lastManualRefreshRef.current < 1500) {
+      setStatus('Task status was just refreshed.');
+      return;
+    }
+    refreshInFlightRef.current = true;
+    if (!silent) lastManualRefreshRef.current = now;
     try {
-      if (!silent) setIsLoadingJobs(true);
+      setIsLoadingJobs(true);
       const data = await apiFetch<JobOut[]>('/jobs', token);
       setJobs(data);
       setSelectedJobId((current) => {
@@ -225,29 +287,42 @@ export function App() {
     } catch (error) {
       if (!silent) setStatus(errorMessage(error));
     } finally {
-      if (!silent) setIsLoadingJobs(false);
+      refreshInFlightRef.current = false;
+      setIsLoadingJobs(false);
     }
   }
 
   async function loadJobItems(jobId: string, silent = false) {
+    if (itemLoadsInFlightRef.current.has(jobId)) return;
+    itemLoadsInFlightRef.current.add(jobId);
     try {
       setItems(await apiFetch<JobItemOut[]>(`/jobs/${jobId}/items`, token));
     } catch (error) {
       if (!silent) setStatus(errorMessage(error));
+    } finally {
+      itemLoadsInFlightRef.current.delete(jobId);
     }
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (authMode === 'sign-up') {
-      await signUp();
-      return;
+    if (authInFlightRef.current) return;
+    authInFlightRef.current = true;
+    setIsAuthenticating(true);
+    try {
+      if (authMode === 'sign-up') {
+        await signUp();
+        return;
+      }
+      if (authMode === 'reset-password') {
+        await sendPasswordReset();
+        return;
+      }
+      await signIn();
+    } finally {
+      authInFlightRef.current = false;
+      setIsAuthenticating(false);
     }
-    if (authMode === 'reset-password') {
-      await sendPasswordReset();
-      return;
-    }
-    await signIn();
   }
 
   async function signIn() {
@@ -316,6 +391,9 @@ export function App() {
   }
 
   async function selectFiles() {
+    if (fileDialogInFlightRef.current) return;
+    fileDialogInFlightRef.current = true;
+    setIsSelectingFiles(true);
     setStatus('Selecting PDFs...');
     try {
       const selected = await selectPdfFiles();
@@ -327,10 +405,16 @@ export function App() {
       setStatus(selected.length ? `Selected ${selected.length} PDF(s). Confirm local parsing when ready.` : 'Ready');
     } catch (error) {
       setStatus(errorMessage(error));
+    } finally {
+      fileDialogInFlightRef.current = false;
+      setIsSelectingFiles(false);
     }
   }
 
   async function selectParsedOutputDir() {
+    if (outputDialogInFlightRef.current) return;
+    outputDialogInFlightRef.current = true;
+    setIsSelectingOutput(true);
     try {
       const selected = await chooseParsedOutputDir();
       if (selected) {
@@ -339,15 +423,19 @@ export function App() {
       }
     } catch (error) {
       setStatus(errorMessage(error));
+    } finally {
+      outputDialogInFlightRef.current = false;
+      setIsSelectingOutput(false);
     }
   }
 
   async function parseSelectedFiles() {
-    if (selectedFiles.length === 0 || isParsing) return;
+    if (selectedFiles.length === 0 || parseInFlightRef.current) return;
     if (!parsedOutputDir) {
       setStatus('Choose a parsed text folder before parsing PDFs.');
       return;
     }
+    parseInFlightRef.current = true;
     setIsParsing(true);
     setFiles([]);
     setParseProgress(0);
@@ -371,19 +459,33 @@ export function App() {
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
+      parseInFlightRef.current = false;
       setIsParsing(false);
     }
   }
 
   async function submitJob() {
-    if (!canSubmit) return;
+    if (!canSubmit || submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
     setStatus('Submitting job...');
     try {
       const properties = requestedProperties();
       const config = modeId === 'material_extraction' ? { properties } : {};
-      const result = await apiFetch<{ job_id: string; queued_items: number }>('/jobs', token, {
+      const submissionFingerprint = JSON.stringify({
+        modeId,
+        properties,
+        files: files.map((file) => file.fileHash),
+      });
+      if (pendingSubmissionFingerprintRef.current !== submissionFingerprint) {
+        pendingSubmissionFingerprintRef.current = submissionFingerprint;
+        pendingIdempotencyKeyRef.current = crypto.randomUUID();
+      }
+      const idempotencyKey = pendingIdempotencyKeyRef.current ?? crypto.randomUUID();
+      pendingIdempotencyKeyRef.current = idempotencyKey;
+      const result = await apiFetch<{ job_id: string; queued_items: number; reused: boolean }>('/jobs', token, {
         method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
           workflow_id: modeId,
           config,
@@ -394,17 +496,27 @@ export function App() {
           })),
         }),
       });
-      setStatus(`Queued job ${shortId(result.job_id)} with ${result.queued_items} item(s).`);
+      setStatus(
+        result.reused
+          ? `Reused existing job ${shortId(result.job_id)}.`
+          : `Queued job ${shortId(result.job_id)} with ${result.queued_items} item(s).`,
+      );
+      pendingIdempotencyKeyRef.current = null;
+      pendingSubmissionFingerprintRef.current = null;
       setSelectedJobId(result.job_id);
       await refreshJobs(true);
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   }
 
   async function cancelJob(job: JobOut) {
+    const actionKey = `cancel:${job.id}`;
+    if (jobActionsInFlightRef.current.has(actionKey)) return;
+    jobActionsInFlightRef.current.add(actionKey);
     setBusyJobId(job.id);
     try {
       await apiFetch<JobOut>(`/jobs/${job.id}/cancel`, token, { method: 'POST' });
@@ -413,11 +525,15 @@ export function App() {
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
+      jobActionsInFlightRef.current.delete(actionKey);
       setBusyJobId(null);
     }
   }
 
   async function saveJobExport(job: JobOut) {
+    const actionKey = `export:${job.id}`;
+    if (jobActionsInFlightRef.current.has(actionKey)) return;
+    jobActionsInFlightRef.current.add(actionKey);
     setBusyJobId(job.id);
     try {
       const target = await pickExcelSavePath(`deep-dig-${job.id}.xlsx`);
@@ -429,6 +545,7 @@ export function App() {
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
+      jobActionsInFlightRef.current.delete(actionKey);
       setBusyJobId(null);
     }
   }
@@ -458,9 +575,9 @@ export function App() {
               Sign out
             </button>
           )}
-          <button className="secondary-button" type="button" onClick={loadModes} title="Refresh extraction modes">
-            <RefreshCw size={18} />
-            Modes
+          <button className="secondary-button" type="button" disabled={isLoadingModes} onClick={() => void loadModes(true)} title="Refresh extraction modes">
+            <RefreshCw className={isLoadingModes ? 'spinning' : ''} size={18} />
+            {isLoadingModes ? 'Loading' : 'Modes'}
           </button>
         </div>
       </header>
@@ -506,9 +623,9 @@ export function App() {
                   />
                 </>
               )}
-              <button type="submit" disabled={supabase ? !email || (authMode !== 'reset-password' && !password) : false}>
+              <button type="submit" disabled={isAuthenticating || (supabase ? !email || (authMode !== 'reset-password' && !password) : false)}>
                 {authModeIcon(authMode)}
-                {authButtonLabel(authMode, isDevAuth)}
+                {isAuthenticating ? 'Please wait…' : authButtonLabel(authMode, isDevAuth)}
               </button>
             </form>
           )}
@@ -533,14 +650,14 @@ export function App() {
             </div>
           )}
 
-          <button className="drop" type="button" onClick={selectFiles}>
+          <button className="drop" type="button" disabled={isSelectingFiles} onClick={selectFiles}>
             <FileText size={24} />
-            <span>Select PDFs</span>
+            <span>{isSelectingFiles ? 'Opening file picker…' : 'Select PDFs'}</span>
           </button>
 
-          <button className="secondary-button" type="button" onClick={() => void selectParsedOutputDir()}>
+          <button className="secondary-button" type="button" disabled={isSelectingOutput} onClick={() => void selectParsedOutputDir()}>
             <FolderOutput size={18} />
-            {parsedOutputDir ? 'Change parsed text folder' : 'Choose parsed text folder'}
+            {isSelectingOutput ? 'Opening folder picker…' : parsedOutputDir ? 'Change parsed text folder' : 'Choose parsed text folder'}
           </button>
 
           {(selectedFiles.length > 0 || files.length > 0) && (
@@ -580,8 +697,8 @@ export function App() {
               <h2>Task queue</h2>
               <span>{jobs.length} recent jobs</span>
             </div>
-            <button className="icon-button" type="button" onClick={() => void refreshJobs()} title="Refresh jobs">
-              <RefreshCw size={18} />
+            <button className="icon-button" type="button" disabled={isLoadingJobs} onClick={() => void refreshJobs()} title="Refresh jobs">
+              <RefreshCw className={isLoadingJobs ? 'spinning' : ''} size={18} />
             </button>
           </div>
 

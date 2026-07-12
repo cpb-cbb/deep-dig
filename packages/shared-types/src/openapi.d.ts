@@ -233,6 +233,11 @@ export interface components {
             queued_items: number;
             /** Estimated Seconds */
             estimated_seconds: number;
+            /**
+             * Reused
+             * @default false
+             */
+            reused: boolean;
         };
         /** JobItemOut */
         JobItemOut: {
@@ -520,6 +525,7 @@ export interface operations {
             query?: never;
             header?: {
                 "x-client-version"?: string | null;
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path?: never;

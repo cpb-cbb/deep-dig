@@ -5,7 +5,7 @@
 1. Copy `apps/backend/.env.example` to `apps/backend/.env`.
 2. Start Postgres and Redis locally or point the env vars to managed services.
 3. Run migrations with `uv run alembic upgrade head`.
-4. Start API with `uv run uvicorn app.main:app --reload --port 8000`.
+4. Start API with `uv run uvicorn app.main:app --reload --port 8001`.
 5. Start worker with `uv run arq app.workers.arq_worker.WorkerSettings`.
 
 Each submitted document is queued as an independent `extract_item` job. A worker
@@ -25,6 +25,32 @@ ITEM_QUEUE_EXPIRY_SECONDS=604800
 
 Effective extraction concurrency is approximately the number of worker replicas
 multiplied by `WORKER_MAX_JOBS`. Keep it within the LLM provider's rate limits.
+
+### Abuse controls
+
+Task creation, polling, export, and cancellation are rate-limited by both user
+ID and client IP. Free accounts can only have one pending or running task by
+default. Tune these controls with:
+
+```env
+FREE_CONCURRENT_JOBS=1
+JOB_SUBMIT_USER_LIMIT_PER_MINUTE=5
+JOB_SUBMIT_IP_LIMIT_PER_MINUTE=20
+JOB_READ_USER_LIMIT_PER_MINUTE=90
+JOB_READ_IP_LIMIT_PER_MINUTE=240
+JOB_ACTION_USER_LIMIT_PER_MINUTE=10
+JOB_ACTION_IP_LIMIT_PER_MINUTE=40
+```
+
+Desktop task submissions send an `Idempotency-Key`. API clients should reuse the
+same key when retrying the same logical submission; keys are unique per user.
+Apply every Alembic migration before deploying a backend that accepts these
+requests.
+
+Quota is returned only when work never enters extraction, such as an enqueue
+failure or cancellation while an item is still pending. Once an item is claimed
+for processing, success, extraction failure, and cancellation all consume the
+reserved quota.
 
 ### VS Code debugging
 

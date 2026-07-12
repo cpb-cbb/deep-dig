@@ -138,7 +138,6 @@ async def _release_item_claim(job_id: UUID, item_id: UUID) -> None:
             item.error_code = "JOB_CANCELLED"
             item.error_message = "Task was cancelled during extraction"
             item.finished_at = datetime.now(timezone.utc)
-            await rollback_quota(db, job.user_id, 1)
         else:
             item.status = "pending"
         await db.commit()
@@ -160,7 +159,6 @@ async def _cancel_claimed_item(job_id: UUID, item_id: UUID) -> None:
         item.error_code = "JOB_CANCELLED"
         item.error_message = "Task was cancelled during extraction"
         item.finished_at = datetime.now(timezone.utc)
-        await rollback_quota(db, job.user_id, 1)
         await db.commit()
 
 
@@ -237,7 +235,6 @@ async def _finish_item(
             job.completed_items += 1
         else:
             job.failed_items += 1
-            await rollback_quota(db, job.user_id, 1)
 
         if job.status != "cancelled" and job.completed_items + job.failed_items >= job.total_items:
             job.status = "completed" if job.completed_items else "failed"

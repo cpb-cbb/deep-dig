@@ -6,7 +6,7 @@ from uuid import UUID
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,8 +35,12 @@ async def ensure_user(db: AsyncSession, user_id, email: str | None) -> User:
 
 
 async def create_job(
-    db: AsyncSession, user: User, payload: JobCreate, client_version: str | None
-) -> tuple[Job, int]:
+    db: AsyncSession,
+    user: User,
+    payload: JobCreate,
+    client_version: str | None,
+    idempotency_key: str | None = None,
+) -> tuple[Job, int, bool]:
     get_workflow(payload.workflow_id)
     if len(payload.items) > settings.free_batch_limit and user.plan == "free":
         raise AppError(400, "BATCH_LIMIT_EXCEEDED", "Batch size exceeds plan limit")
@@ -44,15 +48,47 @@ async def create_job(
         if len(item.text) > settings.max_text_chars:
             raise AppError(413, "PAYLOAD_TOO_LARGE", "PDF text exceeds maximum length")
 
-    await reserve_quota(db, user, len(payload.items))
+    # Serializing task creation per user makes the concurrency and quota checks
+    # authoritative even when several modified clients submit at the same time.
+    locked_user = await db.scalar(select(User).where(User.id == user.id).with_for_update())
+    if locked_user is None:
+        raise AppError(404, "USER_NOT_FOUND", "User not found")
+
+    if idempotency_key:
+        existing_job = await db.scalar(
+            select(Job).where(
+                Job.user_id == locked_user.id,
+                Job.idempotency_key == idempotency_key,
+            )
+        )
+        if existing_job is not None:
+            return existing_job, 0, True
+
+    if locked_user.plan == "free" and settings.free_concurrent_jobs > 0:
+        active_jobs = await db.scalar(
+            select(func.count(Job.id)).where(
+                Job.user_id == locked_user.id,
+                Job.status.in_({"pending", "running"}),
+            )
+        )
+        if (active_jobs or 0) >= settings.free_concurrent_jobs:
+            raise AppError(
+                409,
+                "CONCURRENT_JOB_LIMIT",
+                "Finish or cancel the active task before starting another one",
+                {"limit": settings.free_concurrent_jobs},
+            )
+
+    await reserve_quota(db, locked_user, len(payload.items))
     store_raw_text = bool(user.settings and user.settings.store_raw_text)
     job = Job(
-        user_id=user.id,
+        user_id=locked_user.id,
         workflow_id=payload.workflow_id,
         status="pending",
         total_items=len(payload.items),
         config=payload.config,
         client_version=client_version,
+        idempotency_key=idempotency_key,
     )
     db.add(job)
     await db.flush()
@@ -75,7 +111,7 @@ async def create_job(
     if enqueue_errors:
         await _record_enqueue_failures(db, job.id, enqueue_errors)
         await db.refresh(job)
-    return job, len(queued_items) - len(enqueue_errors)
+    return job, len(queued_items) - len(enqueue_errors), False
 
 
 async def _enqueue_item_jobs(

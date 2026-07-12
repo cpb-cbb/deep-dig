@@ -10,9 +10,11 @@ class AppError(HTTPException):
 
 
 async def app_error_handler(_: Request, exc: AppError) -> ORJSONResponse:
+    retry_after = exc.detail.get("retry_after") if isinstance(exc.detail, dict) else None
     return ORJSONResponse(
         status_code=exc.status_code,
         content={"code": exc.code, "message": exc.message, "detail": exc.detail},
+        headers={"Retry-After": str(retry_after)} if retry_after is not None else None,
     )
 
 

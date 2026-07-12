@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     free_monthly_quota: int = 50
     free_batch_limit: int = 10
     free_concurrent_jobs: int = 1
+    job_submit_user_limit_per_minute: int = 5
+    job_submit_ip_limit_per_minute: int = 20
+    job_read_user_limit_per_minute: int = 90
+    job_read_ip_limit_per_minute: int = 240
+    job_action_user_limit_per_minute: int = 10
+    job_action_ip_limit_per_minute: int = 40
     max_text_chars: int = 200_000
     worker_max_jobs: int = 8
     item_job_timeout_seconds: int = 600
