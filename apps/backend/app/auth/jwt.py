@@ -35,7 +35,9 @@ async def get_jwks() -> dict:
 
 async def verify_supabase_jwt(authorization: str | None = Header(default=None)) -> AuthUser:
     if settings.dev_auth_enabled and authorization == "Bearer dev":
-        return AuthUser(id=settings.dev_auth_user_id, email=settings.dev_auth_email, role="authenticated")
+        return AuthUser(
+            id=settings.dev_auth_user_id, email=settings.dev_auth_email, role="authenticated"
+        )
     if not authorization or not authorization.startswith("Bearer "):
         raise AppError(401, "AUTH_REQUIRED", "Missing bearer token")
     token = authorization.removeprefix("Bearer ").strip()

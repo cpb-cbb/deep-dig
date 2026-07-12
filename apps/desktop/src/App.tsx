@@ -16,58 +16,26 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { apiDownload, apiFetch, apiPublicFetch } from './api';
+import { apiDownload, apiFetch } from './api';
+import {
+  MATERIAL_EXTRACTION_WORKFLOW_ID,
+  MATERIAL_EXTRACTION_WORKFLOW_NAME,
+  calculateJobStats,
+  errorMessage,
+  formatDateTime,
+  formatDuration,
+  isTerminal,
+  jobDurationMs,
+  parseStatusLabel,
+  progressPercent,
+  resultLabel,
+  sampleCount,
+  shortId,
+  type JobItemOut,
+  type JobOut,
+  type MeOut,
+} from './domain';
 import { chooseParsedOutputDir, parsePdfToMarkdown, pickExcelSavePath, saveBytesToPath, selectPdfFiles, type ParsedFile, type SelectedPdf } from './native';
-
-type ExtractionMode = {
-  id: string;
-  name: string;
-  description: string;
-  ui_config: Record<string, unknown>;
-};
-
-type JobOut = {
-  id: string;
-  workflow_id: string;
-  status: string;
-  total_items: number;
-  completed_items: number;
-  failed_items: number;
-  created_at: string;
-  started_at: string | null;
-  finished_at: string | null;
-};
-
-type ParsedResult = {
-  success?: boolean;
-  samples?: Array<{ name?: string; properties?: Record<string, unknown> }>;
-  error?: string | null;
-};
-
-type JobItemOut = {
-  id: string;
-  ordinal: number;
-  file_name: string;
-  file_hash: string;
-  text_length: number;
-  status: string;
-  parsed_result: ParsedResult | null;
-  error_code: string | null;
-  error_message: string | null;
-  duration_ms: number | null;
-  finished_at: string | null;
-};
-
-type MeOut = {
-  email: string | null;
-  display_name: string | null;
-  plan: string;
-  quota: {
-    limit: number;
-    used: number;
-    reset_at?: string;
-  };
-};
 
 type AuthMode = 'sign-in' | 'sign-up' | 'reset-password';
 
@@ -76,6 +44,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | und
 const DEV_TOKEN = (import.meta.env.VITE_DEV_AUTH_TOKEN as string | undefined) ?? (import.meta.env.DEV ? 'dev' : '');
 const isDevAuth = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 const ACTIVE_JOB_REFRESH_MS = 6_000;
+const ACCOUNT_REFRESH_MS = 30_000;
 
 function createSupabaseAuthClient() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
@@ -90,8 +59,6 @@ export function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [profile, setProfile] = useState<MeOut | null>(null);
-  const [modes, setModes] = useState<ExtractionMode[]>([]);
-  const [modeId, setModeId] = useState('material_extraction');
   const [selectedFiles, setSelectedFiles] = useState<SelectedPdf[]>([]);
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [jobs, setJobs] = useState<JobOut[]>([]);
@@ -107,7 +74,6 @@ export function App() {
   const [parsedStorageDir, setParsedStorageDir] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
-  const [isLoadingModes, setIsLoadingModes] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSelectingFiles, setIsSelectingFiles] = useState(false);
   const [isSelectingOutput, setIsSelectingOutput] = useState(false);
@@ -116,10 +82,9 @@ export function App() {
   );
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const accountRefreshInFlightRef = useRef(false);
   const refreshInFlightRef = useRef(false);
   const lastManualRefreshRef = useRef(0);
-  const modesInFlightRef = useRef(false);
-  const lastModesRefreshRef = useRef(0);
   const itemLoadsInFlightRef = useRef(new Set<string>());
   const submitInFlightRef = useRef(false);
   const pendingIdempotencyKeyRef = useRef<string | null>(null);
@@ -141,7 +106,7 @@ export function App() {
       && files.length > 0
       && !isParsing
       && !isSubmitting
-      && (modeId !== 'material_extraction' || requestedProperties().length > 0),
+      && requestedProperties().length > 0,
   );
   const selectedJobStats = useMemo(
     () => selectedJob ? calculateJobStats(selectedJob, items) : null,
@@ -151,10 +116,6 @@ export function App() {
     () => jobs.some((job) => job.status === 'pending' || job.status === 'running'),
     [jobs],
   );
-
-  useEffect(() => {
-    void loadModes();
-  }, []);
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -206,6 +167,15 @@ export function App() {
   }, [token, selectedJobId, hasActiveJobs, isAppVisible]);
 
   useEffect(() => {
+    if (!token.trim() || !isAppVisible) return undefined;
+    void loadAccount(true);
+    const interval = window.setInterval(() => {
+      void loadAccount(true);
+    }, ACCOUNT_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, [token, isAppVisible]);
+
+  useEffect(() => {
     if (!selectedJobId || !token.trim()) {
       setItems([]);
       return;
@@ -229,38 +199,20 @@ export function App() {
       .filter(Boolean);
   }
 
-  async function loadModes(manual = false) {
-    const now = Date.now();
-    if (modesInFlightRef.current) return;
-    if (manual && now - lastModesRefreshRef.current < 3000) {
-      setStatus('Extraction modes were just refreshed.');
-      return;
-    }
-    modesInFlightRef.current = true;
-    if (manual) lastModesRefreshRef.current = now;
-    setIsLoadingModes(true);
-    try {
-      const data = await apiPublicFetch<ExtractionMode[]>('/workflows');
-      setModes(data);
-      if (data.some((mode) => mode.id === 'material_extraction')) {
-        setModeId('material_extraction');
-      } else if (data[0]) {
-        setModeId(data[0].id);
-      }
-    } catch (error) {
-      setStatus(errorMessage(error));
-    } finally {
-      modesInFlightRef.current = false;
-      setIsLoadingModes(false);
-    }
-  }
-
-  async function loadAccount() {
+  async function loadAccount(silent = false) {
+    if (!token.trim() || accountRefreshInFlightRef.current) return;
+    accountRefreshInFlightRef.current = true;
     try {
       setProfile(await apiFetch<MeOut>('/me', token));
     } catch (error) {
-      setStatus(errorMessage(error));
+      if (!silent) setStatus(errorMessage(error));
+    } finally {
+      accountRefreshInFlightRef.current = false;
     }
+  }
+
+  async function refreshDashboard() {
+    await Promise.all([refreshJobs(), loadAccount(true)]);
   }
 
   async function refreshJobs(silent = false) {
@@ -471,9 +423,7 @@ export function App() {
     setStatus('Submitting job...');
     try {
       const properties = requestedProperties();
-      const config = modeId === 'material_extraction' ? { properties } : {};
       const submissionFingerprint = JSON.stringify({
-        modeId,
         properties,
         files: files.map((file) => file.fileHash),
       });
@@ -487,8 +437,8 @@ export function App() {
         method: 'POST',
         headers: { 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
-          workflow_id: modeId,
-          config,
+          workflow_id: MATERIAL_EXTRACTION_WORKFLOW_ID,
+          config: { properties },
           items: files.map((file) => ({
             file_name: file.fileName,
             file_hash: file.fileHash,
@@ -504,7 +454,7 @@ export function App() {
       pendingIdempotencyKeyRef.current = null;
       pendingSubmissionFingerprintRef.current = null;
       setSelectedJobId(result.job_id);
-      await refreshJobs(true);
+      await Promise.all([refreshJobs(true), loadAccount(true)]);
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
@@ -521,7 +471,7 @@ export function App() {
     try {
       await apiFetch<JobOut>(`/jobs/${job.id}/cancel`, token, { method: 'POST' });
       setStatus(`Cancelled job ${shortId(job.id)}.`);
-      await refreshJobs(true);
+      await Promise.all([refreshJobs(true), loadAccount(true)]);
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
@@ -575,10 +525,6 @@ export function App() {
               Sign out
             </button>
           )}
-          <button className="secondary-button" type="button" disabled={isLoadingModes} onClick={() => void loadModes(true)} title="Refresh extraction modes">
-            <RefreshCw className={isLoadingModes ? 'spinning' : ''} size={18} />
-            {isLoadingModes ? 'Loading' : 'Modes'}
-          </button>
         </div>
       </header>
 
@@ -631,24 +577,14 @@ export function App() {
           )}
 
           <div className="field">
-            <label>Extraction mode</label>
-            <select value={modeId} onChange={(event) => setModeId(event.target.value)}>
-              {modes.length === 0 && <option value="material_extraction">Material Science Data Extraction</option>}
-              {modes.map((mode) => <option key={mode.id} value={mode.id}>{mode.name}</option>)}
-            </select>
+            <label>Properties to extract</label>
+            <textarea
+              className="properties"
+              value={propertiesText}
+              onChange={(event) => setPropertiesText(event.target.value)}
+              placeholder="One property per line, or separate with commas"
+            />
           </div>
-
-          {modeId === 'material_extraction' && (
-            <div className="field">
-              <label>Properties to extract</label>
-              <textarea
-                className="properties"
-                value={propertiesText}
-                onChange={(event) => setPropertiesText(event.target.value)}
-                placeholder="One property per line, or separate with commas"
-              />
-            </div>
-          )}
 
           <button className="drop" type="button" disabled={isSelectingFiles} onClick={selectFiles}>
             <FileText size={24} />
@@ -697,7 +633,7 @@ export function App() {
               <h2>Task queue</h2>
               <span>{jobs.length} recent jobs</span>
             </div>
-            <button className="icon-button" type="button" disabled={isLoadingJobs} onClick={() => void refreshJobs()} title="Refresh jobs">
+            <button className="icon-button" type="button" disabled={isLoadingJobs} onClick={() => void refreshDashboard()} title="Refresh jobs and account">
               <RefreshCw className={isLoadingJobs ? 'spinning' : ''} size={18} />
             </button>
           </div>
@@ -716,7 +652,7 @@ export function App() {
                       <strong>{shortId(job.id)}</strong>
                       <span className={`status-badge ${job.status}`}>{job.status}</span>
                     </div>
-                    <span>{workflowName(job.workflow_id, modes)}</span>
+                    <span>{MATERIAL_EXTRACTION_WORKFLOW_NAME}</span>
                     <div className="progress-track" aria-label={`${progressPercent(job)} percent complete`}>
                       <span style={{ width: `${progressPercent(job)}%` }} />
                     </div>
@@ -774,7 +710,7 @@ export function App() {
               <div>
                 <span className="eyebrow">Extraction report / {shortId(selectedJob.id)}</span>
                 <h2 id="task-details-title">Task details</h2>
-                <p>{workflowName(selectedJob.workflow_id, modes)} · started {formatDateTime(selectedJob.started_at ?? selectedJob.created_at)}</p>
+                <p>{MATERIAL_EXTRACTION_WORKFLOW_NAME} · started {formatDateTime(selectedJob.started_at ?? selectedJob.created_at)}</p>
               </div>
               <div className="details-actions">
                 <button
@@ -875,84 +811,6 @@ function ReportMetric({
   );
 }
 
-function workflowName(workflowId: string, modes: ExtractionMode[]) {
-  return modes.find((mode) => mode.id === workflowId)?.name ?? workflowId;
-}
-
-function progressPercent(job: JobOut) {
-  if (!job.total_items) return 0;
-  return Math.round(((job.completed_items + job.failed_items) / job.total_items) * 100);
-}
-
-function isTerminal(status: string) {
-  return ['completed', 'failed', 'cancelled'].includes(status);
-}
-
-function shortId(id: string) {
-  return id.slice(0, 8);
-}
-
-function sampleCount(item: JobItemOut) {
-  return item.parsed_result?.samples?.length ?? 0;
-}
-
-function calculateJobStats(job: JobOut, items: JobItemOut[]) {
-  const durations = items
-    .map((item) => item.duration_ms)
-    .filter((duration): duration is number => duration !== null && duration >= 0);
-  const processed = job.completed_items + job.failed_items;
-  return {
-    elapsedMs: jobDurationMs(job),
-    averageItemMs: durations.length
-      ? Math.round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length)
-      : null,
-    timedItems: durations.length,
-    processed,
-    remaining: Math.max(0, job.total_items - processed),
-    successRate: processed ? Math.round((job.completed_items / processed) * 100) : 0,
-    sampleCount: items.reduce((sum, item) => sum + sampleCount(item), 0),
-    filesWithSamples: items.filter((item) => sampleCount(item) > 0).length,
-    totalCharacters: items.reduce((sum, item) => sum + item.text_length, 0),
-  };
-}
-
-function jobDurationMs(job: JobOut) {
-  if (!job.started_at) return null;
-  const started = new Date(job.started_at).getTime();
-  const finished = job.finished_at ? new Date(job.finished_at).getTime() : Date.now();
-  return Math.max(0, finished - started);
-}
-
-function formatDuration(milliseconds: number | null) {
-  if (milliseconds === null || !Number.isFinite(milliseconds)) return '—';
-  if (milliseconds < 1000) return '<1s';
-  const totalSeconds = Math.round(milliseconds / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-function formatDateTime(value: string | null) {
-  return value ? new Date(value).toLocaleString() : '—';
-}
-
-function resultLabel(item: JobItemOut) {
-  if (item.status === 'done') return `${sampleCount(item)} sample(s) parsed`;
-  if (item.status === 'running') return 'Processing';
-  if (item.status === 'pending') return 'Queued';
-  return 'No parsed result';
-}
-
-function parseStatusLabel(parsedCount: number, selectedCount: number) {
-  if (selectedCount === 0) return 'No PDFs selected';
-  if (parsedCount === selectedCount) return 'Ready to submit';
-  if (parsedCount > 0) return `${parsedCount}/${selectedCount} parsed`;
-  return 'Waiting for local parsing';
-}
-
 function statusIcon(status: string) {
   if (status === 'completed' || status === 'done') return <CheckCircle2 size={18} />;
   if (status === 'failed' || status === 'cancelled') return <XCircle size={18} />;
@@ -970,12 +828,4 @@ function authButtonLabel(mode: AuthMode, devAuth: boolean) {
   if (mode === 'sign-up') return 'Create account';
   if (mode === 'reset-password') return 'Send reset email';
   return 'Sign in';
-}
-
-function errorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && error && 'message' in error) {
-    return String((error as { message?: unknown }).message ?? 'Request failed');
-  }
-  return String(error);
 }

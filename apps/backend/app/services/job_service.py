@@ -23,7 +23,9 @@ def _redis_settings() -> RedisSettings:
 
 
 async def ensure_user(db: AsyncSession, user_id, email: str | None) -> User:
-    user = await db.scalar(select(User).where(User.id == user_id).options(selectinload(User.settings)))
+    user = await db.scalar(
+        select(User).where(User.id == user_id).options(selectinload(User.settings))
+    )
     if user is None:
         user = User(id=user_id, email=email, monthly_quota=settings.free_monthly_quota)
         user.settings = UserSettings(user_id=user_id)
@@ -86,7 +88,7 @@ async def create_job(
         workflow_id=payload.workflow_id,
         status="pending",
         total_items=len(payload.items),
-        config=payload.config,
+        config=payload.config.model_dump(),
         client_version=client_version,
         idempotency_key=idempotency_key,
     )
@@ -114,9 +116,7 @@ async def create_job(
     return job, len(queued_items) - len(enqueue_errors), False
 
 
-async def _enqueue_item_jobs(
-    job: Job, items: list[tuple[JobItem, str]]
-) -> dict[UUID, Exception]:
+async def _enqueue_item_jobs(job: Job, items: list[tuple[JobItem, str]]) -> dict[UUID, Exception]:
     errors: dict[UUID, Exception] = {}
     try:
         redis = await create_pool(_redis_settings())
@@ -157,7 +157,9 @@ async def _record_enqueue_failures(
         return
     items = list(
         await db.scalars(
-            select(JobItem).where(JobItem.job_id == job_id, JobItem.id.in_(errors)).with_for_update()
+            select(JobItem)
+            .where(JobItem.job_id == job_id, JobItem.id.in_(errors))
+            .with_for_update()
         )
     )
     failed = 0
@@ -182,12 +184,16 @@ async def _record_enqueue_failures(
 
 
 async def list_jobs(db: AsyncSession, user_id) -> list[Job]:
-    result = await db.scalars(select(Job).where(Job.user_id == user_id).order_by(Job.created_at.desc()).limit(50))
+    result = await db.scalars(
+        select(Job).where(Job.user_id == user_id).order_by(Job.created_at.desc()).limit(50)
+    )
     return list(result)
 
 
 async def get_owned_job(db: AsyncSession, user_id, job_id: UUID) -> Job:
-    job = await db.scalar(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.items)))
+    job = await db.scalar(
+        select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.items))
+    )
     if job is None:
         raise AppError(404, "JOB_NOT_FOUND", "Job not found")
     return job
@@ -223,7 +229,9 @@ async def cancel_job(db: AsyncSession, user_id, job_id: UUID) -> Job:
     try:
         redis = await create_pool(_redis_settings())
         await redis.set(f"job:{job.id}:cancelled", "1")
-        await redis.publish(f"job:{job.id}:events", '{"event":"job_done","data":{"status":"cancelled"}}')
+        await redis.publish(
+            f"job:{job.id}:events", '{"event":"job_done","data":{"status":"cancelled"}}'
+        )
     except Exception:
         # The committed database status is authoritative. Queued workers check it
         # before starting even when the live Redis notification is unavailable.

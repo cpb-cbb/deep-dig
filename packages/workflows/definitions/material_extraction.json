@@ -3,7 +3,6 @@
   "name": "Material Science Data Extraction",
   "description": "Extract a sample-property table for user-requested material properties.",
   "version": "1.0.0",
-  "result_processor": "material_extraction",
   "ui_config": {
     "color": "blue",
     "icon": "beaker",

@@ -19,21 +19,13 @@ class RateLimitRule:
 JOB_SUBMIT_USER_RULE = RateLimitRule(
     "job_submit_user", settings.job_submit_user_limit_per_minute, 60
 )
-JOB_SUBMIT_IP_RULE = RateLimitRule(
-    "job_submit_ip", settings.job_submit_ip_limit_per_minute, 60
-)
-JOB_READ_USER_RULE = RateLimitRule(
-    "job_read_user", settings.job_read_user_limit_per_minute, 60
-)
-JOB_READ_IP_RULE = RateLimitRule(
-    "job_read_ip", settings.job_read_ip_limit_per_minute, 60
-)
+JOB_SUBMIT_IP_RULE = RateLimitRule("job_submit_ip", settings.job_submit_ip_limit_per_minute, 60)
+JOB_READ_USER_RULE = RateLimitRule("job_read_user", settings.job_read_user_limit_per_minute, 60)
+JOB_READ_IP_RULE = RateLimitRule("job_read_ip", settings.job_read_ip_limit_per_minute, 60)
 JOB_ACTION_USER_RULE = RateLimitRule(
     "job_action_user", settings.job_action_user_limit_per_minute, 60
 )
-JOB_ACTION_IP_RULE = RateLimitRule(
-    "job_action_ip", settings.job_action_ip_limit_per_minute, 60
-)
+JOB_ACTION_IP_RULE = RateLimitRule("job_action_ip", settings.job_action_ip_limit_per_minute, 60)
 
 
 async def check_rate_limit(identifier: str, rule: RateLimitRule) -> None:

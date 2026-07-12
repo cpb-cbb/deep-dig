@@ -4,7 +4,18 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -34,16 +45,22 @@ class User(Base):
     is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
     ban_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
-    settings: Mapped[UserSettings] = relationship(back_populates="user", cascade="all, delete-orphan")
+    settings: Mapped[UserSettings] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     jobs: Mapped[list[Job]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class UserSettings(Base):
     __tablename__ = "user_settings"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
     preferred_language: Mapped[str] = mapped_column(Text, default="zh")
     store_raw_text: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_on_job_complete: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -59,7 +76,9 @@ class Job(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     workflow_id: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, default="pending")
     total_items: Mapped[int] = mapped_column(Integer)
@@ -81,7 +100,9 @@ class JobItem(Base):
     __table_args__ = (UniqueConstraint("job_id", "ordinal", name="uq_job_items_job_ordinal"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
+    )
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
     file_name: Mapped[str] = mapped_column(Text, nullable=False)
     file_hash: Mapped[str] = mapped_column(Text, nullable=False)
@@ -105,7 +126,9 @@ class JobItem(Base):
 class UsageDaily(Base):
     __tablename__ = "usage_daily"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
     date: Mapped[date] = mapped_column(Date, primary_key=True)
     extractions: Mapped[int] = mapped_column(Integer, default=0)
     llm_tokens_in: Mapped[int] = mapped_column(BigInteger, default=0)

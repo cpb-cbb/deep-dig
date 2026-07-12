@@ -93,9 +93,7 @@ async def _claim_item(job_id: UUID, item_id: UUID) -> tuple[str, dict[str, Any]]
         if job is None:
             return None
         item = await db.scalar(
-            select(JobItem)
-            .where(JobItem.id == item_id, JobItem.job_id == job_id)
-            .with_for_update()
+            select(JobItem).where(JobItem.id == item_id, JobItem.job_id == job_id).with_for_update()
         )
         if item is None or item.status in TERMINAL_ITEM_STATUSES:
             return None
@@ -127,9 +125,7 @@ async def _release_item_claim(job_id: UUID, item_id: UUID) -> None:
         if job is None:
             return
         item = await db.scalar(
-            select(JobItem)
-            .where(JobItem.id == item_id, JobItem.job_id == job_id)
-            .with_for_update()
+            select(JobItem).where(JobItem.id == item_id, JobItem.job_id == job_id).with_for_update()
         )
         if item is None or item.status != "running":
             return
@@ -149,9 +145,7 @@ async def _cancel_claimed_item(job_id: UUID, item_id: UUID) -> None:
         if job is None:
             return
         item = await db.scalar(
-            select(JobItem)
-            .where(JobItem.id == item_id, JobItem.job_id == job_id)
-            .with_for_update()
+            select(JobItem).where(JobItem.id == item_id, JobItem.job_id == job_id).with_for_update()
         )
         if item is None or item.status in TERMINAL_ITEM_STATUSES:
             return
@@ -216,9 +210,7 @@ async def _finish_item(
         if job is None:
             return
         item = await db.scalar(
-            select(JobItem)
-            .where(JobItem.id == item_id, JobItem.job_id == job_id)
-            .with_for_update()
+            select(JobItem).where(JobItem.id == item_id, JobItem.job_id == job_id).with_for_update()
         )
         if item is None or item.status in TERMINAL_ITEM_STATUSES:
             return

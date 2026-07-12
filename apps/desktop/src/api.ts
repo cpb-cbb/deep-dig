@@ -31,12 +31,6 @@ export async function apiDownload(path: string, token: string): Promise<ArrayBuf
   return response.arrayBuffer();
 }
 
-export async function apiPublicFetch<T>(path: string): Promise<T> {
-  const response = await request(`${API_BASE}${path}`, {});
-  if (!response.ok) throw await readProblem(response);
-  return response.json();
-}
-
 async function request(url: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init);

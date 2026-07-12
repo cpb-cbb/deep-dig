@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from app.errors import AppError
 from app.models import Job, JobItem
@@ -65,6 +66,15 @@ def make_job_payload() -> JobCreate:
         config={"properties": ["surface area"]},
         items=[JobCreateItem(file_name="paper.pdf", file_hash="hash-00000001", text="text")],
     )
+
+
+def test_job_payload_rejects_removed_workflows():
+    with pytest.raises(ValidationError):
+        JobCreate(
+            workflow_id="code_friendly",
+            config={"properties": ["surface area"]},
+            items=[JobCreateItem(file_name="paper.pdf", file_hash="hash-00000001", text="text")],
+        )
 
 
 @pytest.mark.asyncio

@@ -6,18 +6,25 @@ from typing import Any
 import json_repair
 
 from app.services.llm_gateway import llm_gateway
-from app.services.processor import process_result
+from app.services.processor import parse_material_extraction
 
 
 def _render(template: str, values: dict[str, Any]) -> str:
-    return template.format(**{key: value if isinstance(value, str) else json.dumps(value, ensure_ascii=False) for key, value in values.items()})
+    return template.format(
+        **{
+            key: value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+            for key, value in values.items()
+        }
+    )
 
 
 def _parse_json_output(text: str) -> Any:
     return json_repair.loads(text)
 
 
-async def run_workflow(workflow: dict[str, Any], document_text: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+async def run_workflow(
+    workflow: dict[str, Any], document_text: str, params: dict[str, Any] | None = None
+) -> dict[str, Any]:
     params = params or {}
     context: dict[str, Any] = {"document_text": document_text, **params}
     raw_results: dict[str, Any] = {}
@@ -29,15 +36,23 @@ async def run_workflow(workflow: dict[str, Any], document_text: str, params: dic
             results = []
             for item in items:
                 local_context = {**context, step.get("iterate_input_var", "item"): item}
-                result = await llm_gateway.call(step["system_prompt"], _render(step["user_prompt_template"], local_context))
-                data = _parse_json_output(result.text) if step.get("output_format") == "json" else result.text
+                result = await llm_gateway.call(
+                    step["system_prompt"], _render(step["user_prompt_template"], local_context)
+                )
+                data = (
+                    _parse_json_output(result.text)
+                    if step.get("output_format") == "json"
+                    else result.text
+                )
                 results.append({"sample_name": item, "data": data})
             raw_results[step["id"]] = results
             continue
 
         user_prompt = _render(step["user_prompt_template"], {**context, **raw_results})
         result = await llm_gateway.call(step["system_prompt"], user_prompt)
-        raw_results[step["id"]] = _parse_json_output(result.text) if step.get("output_format") == "json" else result.text
+        raw_results[step["id"]] = (
+            _parse_json_output(result.text) if step.get("output_format") == "json" else result.text
+        )
 
-    parsed = process_result(workflow.get("result_processor", "generic"), raw_results)
+    parsed = parse_material_extraction(raw_results)
     return {"raw_results": raw_results, "parsed_result": parsed.model_dump(mode="json")}

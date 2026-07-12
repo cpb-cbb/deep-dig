@@ -34,9 +34,9 @@ export default function Home() {
       <section className="hero shell" id="top">
         <div className="hero-copy">
           <div className="eyebrow"><span /> 桌面端 AI 数据抽取工具</div>
-          <h1>把任何资料，<br />变成<span>可用的数据。</span></h1>
+          <h1>把材料论文，<br />变成<span>可用的数据。</span></h1>
           <p className="hero-lead">
-            从发票、网页到科研论文，Deep Dig 帮你定义字段、批量抽取、校验结果，最终导出整洁的结构化数据。
+            Deep Dig 面向材料科学论文，按你指定的属性批量提取样品、结构、工艺、测试条件与性能数据。
           </p>
           <div className="hero-actions">
             <button className="primary" onClick={virtualDownload}>免费下载 <span>↓</span></button>
@@ -45,7 +45,7 @@ export default function Home() {
           <div className="trust-row">
             <span><b>✓</b> PDF 留在本地解析</span>
             <span><b>✓</b> 支持批量任务</span>
-            <span><b>✓</b> 导出 Excel / JSON</span>
+            <span><b>✓</b> 导出结构化 Excel</span>
           </div>
         </div>
 
@@ -81,31 +81,31 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="ticker" aria-label="支持的文件格式">
-        <div>PDF <span>✦</span> 网页 <span>✦</span> 图片 <span>✦</span> Word <span>✦</span> 纯文本 <span>✦</span> PDF <span>✦</span> 网页 <span>✦</span> 图片</div>
+      <section className="ticker" aria-label="材料数据抽取能力">
+        <div>样品 <span>✦</span> 制备工艺 <span>✦</span> 结构表征 <span>✦</span> 测试条件 <span>✦</span> 性能数据 <span>✦</span> 原文依据</div>
       </section>
 
       <section className="section shell" id="features">
         <div className="section-heading">
-          <div><span className="kicker">01 · 两种场景，一套流程</span><h2>不止读论文。<br />日常资料也能一键整理。</h2></div>
-          <p>不需要写正则，也不必反复复制粘贴。告诉 Deep Dig 你想要哪些字段，剩下的交给它。</p>
+          <div><span className="kicker">01 · 一条专注的抽取流程</span><h2>从材料样品，<br />一直关联到性能数据。</h2></div>
+          <p>不需要写正则，也不必反复复制粘贴。指定要提取的材料属性，Deep Dig 会按样品组织结果。</p>
         </div>
         <div className="use-grid">
           <article className="use-card general">
-            <div className="card-top"><span className="card-no">A</span><em>GENERAL EXTRACTION</em></div>
+            <div className="card-top"><span className="card-no">A</span><em>SAMPLE PROPERTIES</em></div>
             <div className="card-icon"><span>⌁</span><i /></div>
-            <h3>日常通用抽取</h3>
-            <p>把合同、简历、票据、产品页或会议记录，批量整理成你需要的字段。</p>
-            <ul><li>自定义抽取模板</li><li>多格式批量处理</li><li>结果溯源与人工校验</li></ul>
-            <div className="tag-row"><span>合同台账</span><span>竞品信息</span><span>票据整理</span></div>
+            <h3>样品级属性</h3>
+            <p>抽取成分、制备参数、形貌、孔结构、表面化学与表征结果，并归属到正确样品。</p>
+            <ul><li>按需定义属性名称</li><li>多个 PDF 批量处理</li><li>保留单位、方法与来源</li></ul>
+            <div className="tag-row"><span>合成工艺</span><span>结构表征</span><span>孔隙性质</span></div>
           </article>
           <article className="use-card research">
-            <div className="card-top"><span className="card-no">B</span><em>RESEARCH EXTRACTION</em></div>
+            <div className="card-top"><span className="card-no">B</span><em>MEASUREMENT LINKING</em></div>
             <div className="card-icon molecule"><span>⌬</span><i /></div>
-            <h3>科研文献抽取</h3>
-            <p>面向实验型论文，识别样品、制备工艺、表征参数与性能数据，并保留上下文依据。</p>
-            <ul><li>理解跨段落实验语义</li><li>样品—工艺—性能关联</li><li>文献级批量汇总</li></ul>
-            <div className="tag-row"><span>材料科学</span><span>实验数据</span><span>综述整理</span></div>
+            <h3>测试条件与性能关联</h3>
+            <p>把电解液、电流密度、扫描速率等测试条件与同一次实验中的性能结果绑定。</p>
+            <ul><li>区分样品属性与测量记录</li><li>同一样品支持多组测试</li><li>结果按条件展开到表格</li></ul>
+            <div className="tag-row"><span>测试条件</span><span>电化学性能</span><span>多次测量</span></div>
           </article>
         </div>
       </section>
@@ -119,7 +119,7 @@ export default function Home() {
           <div className="steps">
             <article><span className="step-no">01</span><div className="step-symbol">＋</div><h3>放入文件</h3><p>拖入单个文件或整个文件夹。PDF 文本在你的电脑上完成解析。</p></article>
             <article><span className="step-no">02</span><div className="step-symbol">⌘</div><h3>定义字段</h3><p>从模板开始，或用自然语言描述你想抽取的内容和格式。</p></article>
-            <article><span className="step-no">03</span><div className="step-symbol">↗</div><h3>校验并导出</h3><p>回看原文依据，修正低置信结果，一键导出 Excel 或 JSON。</p></article>
+            <article><span className="step-no">03</span><div className="step-symbol">↗</div><h3>查看并导出</h3><p>查看逐文档状态与来源信息，把完成的批次导出为 Excel 工作簿。</p></article>
           </div>
         </div>
       </section>

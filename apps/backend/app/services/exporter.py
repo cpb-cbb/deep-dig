@@ -16,6 +16,7 @@ MAX_EXCEL_ROWS = 1_048_576
 class ExportTooLargeError(ValueError):
     pass
 
+
 HEADERS = [
     "Job ID",
     "Workflow",
@@ -96,7 +97,9 @@ def _result_rows(job: Job) -> list[list[Any]]:
 
 def _sample_rows(job: Job, item: JobItem, sample: Any) -> list[list[Any]]:
     if not isinstance(sample, dict):
-        return [_base_row(job, item) + ["", "", "", "", "", "", "", "", "", "", "Invalid sample result"]]
+        return [
+            _base_row(job, item) + ["", "", "", "", "", "", "", "", "", "", "Invalid sample result"]
+        ]
 
     sample_name = sample.get("name", "")
     properties = sample.get("properties", {})
@@ -150,7 +153,10 @@ def _sample_rows(job: Job, item: JobItem, sample: Any) -> list[list[Any]]:
                     )
                 )
     if not rows:
-        rows.append(_base_row(job, item) + [sample_name, "", "", "", "", "", "", "", "", "", "No properties parsed"])
+        rows.append(
+            _base_row(job, item)
+            + [sample_name, "", "", "", "", "", "", "", "", "", "No properties parsed"]
+        )
     return rows
 
 
@@ -266,7 +272,15 @@ def _summary_sample_rows(sample: dict[str, Any], properties: list[str]) -> list[
         sample_properties = {}
     measurements = sample.get("measurements", [])
     if not isinstance(measurements, list) or not measurements:
-        return [[sample_name, *[_summary_property_value(property_name, sample_properties) for property_name in properties]]]
+        return [
+            [
+                sample_name,
+                *[
+                    _summary_property_value(property_name, sample_properties)
+                    for property_name in properties
+                ],
+            ]
+        ]
 
     rows: list[list[Any]] = []
     for measurement in measurements:
@@ -282,12 +296,22 @@ def _summary_sample_rows(sample: dict[str, Any], properties: list[str]) -> list[
             [
                 sample_name,
                 *[
-                    _summary_property_value(property_name, sample_properties, conditions, performance)
+                    _summary_property_value(
+                        property_name, sample_properties, conditions, performance
+                    )
                     for property_name in properties
                 ],
             ]
         )
-    return rows or [[sample_name, *[_summary_property_value(property_name, sample_properties) for property_name in properties]]]
+    return rows or [
+        [
+            sample_name,
+            *[
+                _summary_property_value(property_name, sample_properties)
+                for property_name in properties
+            ],
+        ]
+    ]
 
 
 def _summary_property_value(property_name: str, *groups: dict[str, Any]) -> str:

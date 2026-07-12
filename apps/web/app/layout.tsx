@@ -6,11 +6,11 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Deep Dig — 把任何资料，变成可用的数据",
-  description: "面向日常通用任务与科研文献的桌面端 AI 数据抽取工具。PDF 本地解析，批量抽取并导出结构化数据。",
+  title: "Deep Dig — 材料科学论文数据抽取",
+  description: "面向材料科学论文的桌面端 AI 数据抽取工具。PDF 本地解析，按需抽取样品、工艺、测试条件与性能数据。",
   openGraph: {
-    title: "Deep Dig — 把任何资料，变成可用的数据",
-    description: "日常资料与科研文献的桌面端 AI 数据抽取工具。",
+    title: "Deep Dig — 材料科学论文数据抽取",
+    description: "从材料科学论文中批量提取样品属性、测试条件与性能数据。",
     type: "website",
     images: [{ url: "/og.png", width: 1536, height: 1024, alt: "Deep Dig 数据抽取工具" }],
   },

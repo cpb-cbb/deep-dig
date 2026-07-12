@@ -65,7 +65,7 @@ def test_build_job_xlsx_flattens_parsed_results():
                                         "source": "Figure 5a",
                                         "method": "GCD",
                                     }
-                                }
+                                },
                             }
                         ],
                     }

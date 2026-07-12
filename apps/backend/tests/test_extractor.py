@@ -35,7 +35,6 @@ async def test_run_workflow_does_not_repair_text_output(monkeypatch):
         return Result(text='{"sampleNames":["PC-800",]}')
 
     workflow = {
-        "result_processor": "generic",
         "steps": [
             {
                 "id": "step1",

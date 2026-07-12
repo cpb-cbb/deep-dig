@@ -10,15 +10,19 @@ from app.schemas import WorkflowOut
 
 ROOT = Path(__file__).resolve().parents[4]
 WORKFLOW_DIR = ROOT / "packages" / "workflows" / "definitions"
+MATERIAL_EXTRACTION_WORKFLOW_ID = "material_extraction"
+MATERIAL_EXTRACTION_WORKFLOW_FILE = WORKFLOW_DIR / f"{MATERIAL_EXTRACTION_WORKFLOW_ID}.json"
 
 
 @lru_cache(maxsize=1)
 def load_workflows() -> dict[str, dict[str, Any]]:
-    workflows: dict[str, dict[str, Any]] = {}
-    for path in sorted(WORKFLOW_DIR.glob("*.json")):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        workflows[data["id"]] = data
-    return workflows
+    data = json.loads(MATERIAL_EXTRACTION_WORKFLOW_FILE.read_text(encoding="utf-8"))
+    if data.get("id") != MATERIAL_EXTRACTION_WORKFLOW_ID:
+        raise RuntimeError(
+            f"Workflow id in {MATERIAL_EXTRACTION_WORKFLOW_FILE} must be "
+            f"{MATERIAL_EXTRACTION_WORKFLOW_ID!r}"
+        )
+    return {MATERIAL_EXTRACTION_WORKFLOW_ID: data}
 
 
 def list_public_workflows() -> list[WorkflowOut]:

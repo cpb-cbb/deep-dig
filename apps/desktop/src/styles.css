@@ -30,7 +30,6 @@ body {
 
 button,
 input,
-select,
 textarea {
   font: inherit;
 }
@@ -63,7 +62,6 @@ button:active:not(:disabled) {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible,
 textarea:focus-visible {
   outline: 3px solid rgba(182, 255, 43, .65);
   outline-offset: 2px;
@@ -75,7 +73,6 @@ button:disabled {
 }
 
 input,
-select,
 textarea {
   width: 100%;
   border: 1px solid var(--line-dark);
