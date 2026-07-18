@@ -18,5 +18,6 @@ __pycache__/
 *.db
 *.rdb
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/binaries/
 literature/
 .vscode/

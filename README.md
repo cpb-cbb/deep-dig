@@ -49,6 +49,15 @@ Or run the complete local stack from the repository root:
 pnpm dev:start -- --auth dev --llm fake
 ```
 
+Build a self-contained installer for the current desktop platform:
+
+```bash
+pnpm build:desktop:native
+```
+
+The installer bundles the local PDF parser; end users do not need Python or `uv`. See
+[Desktop development](docs/desktop-development.md) for macOS/Windows release and signing details.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)

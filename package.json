@@ -10,6 +10,7 @@
     "dev:status": "scripts/deep-dig-dev.sh status",
     "dev:desktop": "pnpm --filter @deep-dig/desktop dev",
     "build:desktop": "pnpm --filter @deep-dig/desktop build",
+    "build:desktop:native": "pnpm --filter @deep-dig/desktop build:native",
     "check:backend": "cd apps/backend && uv run ruff format --check app tests && uv run ruff check app tests && uv run pytest",
     "check:desktop": "pnpm --filter @deep-dig/desktop build",
     "check": "pnpm check:backend && pnpm check:desktop",

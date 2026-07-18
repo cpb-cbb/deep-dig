@@ -7,6 +7,11 @@ dependencies = [
     "pymupdf4llm>=1.27.2.3",
 ]
 
+[dependency-groups]
+build = [
+    "pyinstaller>=6.16,<7",
+]
+
 [project.scripts]
 deep-dig-parse-pdf = "desktop_parser.parse_pdf:main"
 
