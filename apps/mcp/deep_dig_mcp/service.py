@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import hashlib
 from pathlib import Path
 from typing import Iterable
@@ -11,11 +10,11 @@ from deep_dig_mcp.cache import DocumentCache
 from deep_dig_mcp.errors import DeepDigMcpError
 from deep_dig_mcp.parser import DocumentParser, MarkItDownParser
 from deep_dig_mcp.schemas import (
-    ExtractionStatus,
     ExtractionSubmission,
     ParsedDocument,
     ParseDocumentResult,
     ParserInfo,
+    SafeJobStatus,
 )
 from deep_dig_mcp.security import (
     config_fingerprint,
@@ -133,13 +132,10 @@ class DeepDigService:
         )
         return ExtractionSubmission.model_validate(result)
 
-    async def get_extraction(self, job_id: str) -> ExtractionStatus:
+    async def get_extraction_status(self, job_id: str) -> SafeJobStatus:
         normalized_job_id = _validate_job_id(job_id)
-        job, items = await asyncio.gather(
-            self.backend.get_job(normalized_job_id),
-            self.backend.get_job_items(normalized_job_id),
-        )
-        return ExtractionStatus(job=job, items=items)
+        job = await self.backend.get_job(normalized_job_id)
+        return SafeJobStatus.model_validate(job)
 
     async def export_extraction_xlsx(
         self,

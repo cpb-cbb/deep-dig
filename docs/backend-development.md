@@ -19,7 +19,7 @@ uv run uvicorn app.main:app --reload --port 8001
 uv run arq app.workers.arq_worker.WorkerSettings
 ```
 
-From the repository root, the process helper starts Redis, API, worker, and desktop together:
+From the repository root, the process helper starts Redis, API, and worker together:
 
 ```bash
 pnpm dev:start -- --auth dev --llm fake
@@ -28,6 +28,9 @@ pnpm dev:stop
 ```
 
 Logs are written under `.dev/logs/` and are intentionally ignored by Git.
+
+The hosted MCP runs as a separate user-facing process from `apps/mcp`. It authenticates every
+caller and forwards the caller token to this API; do not configure a shared production user token.
 
 ## Quality checks
 

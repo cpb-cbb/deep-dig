@@ -63,6 +63,9 @@ class FakeBackend:
             "reused": False,
         }
 
+    async def get_me(self) -> dict[str, Any]:
+        return {"id": "00000000-0000-0000-0000-000000000001", "email": "test@example.com"}
+
     async def get_job(self, job_id: str) -> dict[str, Any]:
         return {
             "id": job_id,
@@ -71,9 +74,6 @@ class FakeBackend:
             "completed_items": 1,
             "failed_items": 0,
         }
-
-    async def get_job_items(self, _job_id: str) -> list[dict[str, Any]]:
-        return [{"status": "completed", "parsed_result": {"success": True, "samples": []}}]
 
     async def export_xlsx(self, _job_id: str) -> bytes:
         return b"PK\x03\x04fake-xlsx"

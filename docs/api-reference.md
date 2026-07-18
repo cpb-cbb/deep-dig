@@ -7,7 +7,7 @@ ReDoc at `/redoc`, and the machine-readable schema at `/openapi.json`.
 
 All `/me` and `/jobs` endpoints require `Authorization: Bearer <supabase-access-token>`. When
 `DEV_AUTH_ENABLED=true`, local clients may use `Bearer dev`; never enable this in staging or
-production. Desktop requests also send `X-Client-Version`.
+production. First-party clients also send `X-Client-Version`.
 
 `POST /jobs` should send a stable `Idempotency-Key` of 16–128 characters and reuse it when
 retrying the same logical submission. Every response includes `X-App-Version`. Rate-limited
@@ -100,3 +100,10 @@ Common codes include `AUTH_REQUIRED`, `AUTH_INVALID`, `WORKFLOW_NOT_FOUND`,
 `LLM_RATE_LIMITED`. Request-model violations use FastAPI's standard HTTP 422 response.
 
 The generated `apps/backend/openapi.json` is authoritative for exact field types.
+
+## Hosted MCP exposure
+
+The backend API contract is broader than the public MCP contract. In particular,
+`GET /jobs/{job_id}/items` and its `parsed_result` field are for trusted first-party server use and
+must not be mirrored by MCP tools. The MCP exposes submission acknowledgement, safe job status, and
+the exported workbook only.

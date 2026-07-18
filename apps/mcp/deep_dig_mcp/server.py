@@ -1,108 +1,142 @@
 from __future__ import annotations
 
-import json
-from typing import Any
+import base64
 
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import BlobResourceContents, CallToolResult, EmbeddedResource
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
+from deep_dig_mcp.auth import BackendTokenVerifier
 from deep_dig_mcp.errors import DeepDigMcpError
-from deep_dig_mcp.service import DeepDigService
+from deep_dig_mcp.gateway import DeepDigGateway
+from deep_dig_mcp.settings import Settings
 
 
-mcp = FastMCP(
-    "Deep Dig",
-    instructions=(
-        "Parse local documents before submitting extraction. Inspect warnings and needsOcr. "
-        "Use documentId for later tools so full Markdown stays out of model context. Original "
-        "documents remain inside the local container; only Markdown is sent to the configured "
-        "Deep Dig backend."
-    ),
-    json_response=True,
-)
-_service: DeepDigService | None = None
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_settings = Settings()
 
 
-def get_service() -> DeepDigService:
-    global _service
-    if _service is None:
-        _service = DeepDigService()
-    return _service
+def build_mcp(
+    settings: Settings | None = None,
+    *,
+    gateway: DeepDigGateway | None = None,
+) -> FastMCP:
+    runtime = settings or _settings
+    runtime_gateway = gateway or DeepDigGateway(runtime)
+    verifier = BackendTokenVerifier(runtime)
+    server = FastMCP(
+        "Deep Dig",
+        instructions=(
+            "Submit Markdown parsed on the caller's machine, monitor safe job status, and download "
+            "the completed workbook. This service does not expose prompts, schemas, or raw "
+            "extraction JSON."
+        ),
+        host=runtime.mcp_host,
+        port=runtime.mcp_port,
+        streamable_http_path="/mcp",
+        json_response=True,
+        stateless_http=True,
+        auth=AuthSettings(
+            issuer_url=runtime.auth_issuer_url,
+            resource_server_url=runtime.mcp_public_url,
+            required_scopes=["deep-dig"],
+        ),
+        token_verifier=verifier,
+    )
 
-
-@mcp.tool()
-def parse_document(path: str) -> dict[str, Any]:
-    """Parse a document under /workspace and cache Markdown under /output."""
-    try:
-        result = get_service().parse_document(path)
-        return {"ok": True, "document": result.model_dump(mode="json", by_alias=True)}
-    except DeepDigMcpError as exc:
-        return _error_result(exc)
-
-
-@mcp.tool()
-async def submit_material_extraction(
-    document_id: str,
-    properties: list[str],
-    allow_low_quality: bool = False,
-) -> dict[str, Any]:
-    """Submit cached Markdown and requested material properties to the Deep Dig backend."""
-    try:
-        result = await get_service().submit_material_extraction(
-            document_id,
-            properties,
-            allow_low_quality=allow_low_quality,
+    @server.tool(structured_output=False)
+    async def submit_material_extraction(
+        file_name: str,
+        file_hash: str,
+        markdown: str,
+        properties: list[str],
+        needs_ocr: bool = False,
+        warnings: list[str] | None = None,
+        allow_low_quality: bool = False,
+    ) -> str:
+        """Submit locally parsed Markdown. Returns only a job acknowledgement, never result JSON."""
+        try:
+            result = await runtime_gateway.submit_material_extraction(
+                access_token=_caller_token(),
+                file_name=file_name,
+                file_hash=file_hash,
+                markdown=markdown,
+                properties=properties,
+                needs_ocr=needs_ocr,
+                warnings=warnings,
+                allow_low_quality=allow_low_quality,
+            )
+        except DeepDigMcpError as exc:
+            raise _safe_tool_error(exc) from exc
+        return (
+            f"job_id={result.job_id} queued_items={result.queued_items} "
+            f"estimated_seconds={result.estimated_seconds} reused={str(result.reused).lower()}"
         )
-        return {"ok": True, "submission": result.model_dump(mode="json", by_alias=True)}
-    except DeepDigMcpError as exc:
-        return _error_result(exc)
+
+    @server.tool(structured_output=False)
+    async def get_extraction_status(job_id: str) -> str:
+        """Return safe state and progress counters without item details or extraction JSON."""
+        try:
+            result = await runtime_gateway.get_extraction_status(
+                access_token=_caller_token(), job_id=job_id
+            )
+        except DeepDigMcpError as exc:
+            raise _safe_tool_error(exc) from exc
+        return (
+            f"job_id={result.id} status={result.status} "
+            f"progress={result.completed_items}/{result.total_items} "
+            f"failed_items={result.failed_items}"
+        )
+
+    @server.tool(structured_output=False)
+    async def export_extraction_xlsx(job_id: str) -> CallToolResult:
+        """Return the completed Excel workbook as a binary MCP resource."""
+        try:
+            normalized_job_id = str(job_id).strip()
+            content = await runtime_gateway.export_extraction_xlsx(
+                access_token=_caller_token(), job_id=normalized_job_id
+            )
+        except DeepDigMcpError as exc:
+            raise _safe_tool_error(exc) from exc
+        file_name = f"deep-dig-{normalized_job_id}.xlsx"
+        resource = EmbeddedResource(
+            type="resource",
+            resource=BlobResourceContents(
+                uri=f"deep-dig://exports/{file_name}",
+                mimeType=XLSX_MEDIA_TYPE,
+                blob=base64.b64encode(content).decode("ascii"),
+                _meta={"fileName": file_name, "sizeBytes": len(content)},
+            ),
+        )
+        return CallToolResult(content=[resource], isError=False)
+
+    @server.custom_route("/healthz", methods=["GET"])
+    async def healthz(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True, "service": "deep-dig-mcp"})
+
+    return server
 
 
-@mcp.tool()
-async def get_extraction(job_id: str) -> dict[str, Any]:
-    """Get extraction job status and item results in one call."""
-    try:
-        result = await get_service().get_extraction(job_id)
-        return {"ok": True, "extraction": result.model_dump(mode="json", by_alias=True)}
-    except DeepDigMcpError as exc:
-        return _error_result(exc)
+def _caller_token() -> str:
+    token = get_access_token()
+    if token is None or not token.token:
+        raise ToolError("AUTH_REQUIRED: Sign in and configure a user bearer token")
+    return token.token
 
 
-@mcp.tool()
-async def export_extraction_xlsx(
-    job_id: str,
-    output_name: str | None = None,
-) -> dict[str, Any]:
-    """Download a completed extraction as XLSX into the mounted /output directory."""
-    try:
-        output_path = await get_service().export_extraction_xlsx(job_id, output_name)
-        return {"ok": True, "outputPath": output_path}
-    except DeepDigMcpError as exc:
-        return _error_result(exc)
+def _safe_tool_error(exc: DeepDigMcpError) -> ToolError:
+    return ToolError(f"{exc.code}: {exc.message}")
 
 
-@mcp.tool()
-def parser_info() -> dict[str, Any]:
-    """Return parser version, supported formats, limits, and OCR capability."""
-    try:
-        result = get_service().parser_info()
-        return {"ok": True, "parser": result.model_dump(mode="json", by_alias=True)}
-    except DeepDigMcpError as exc:
-        return _error_result(exc)
-
-
-@mcp.resource("deep-dig://parser-info")
-def parser_info_resource() -> str:
-    """Machine-readable local parser capabilities."""
-    result = parser_info()
-    return json.dumps(result, ensure_ascii=False)
-
-
-def _error_result(exc: DeepDigMcpError) -> dict[str, Any]:
-    return {"ok": False, "error": exc.as_dict()}
+mcp = build_mcp()
 
 
 def main() -> None:
-    mcp.run(transport="stdio")
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":

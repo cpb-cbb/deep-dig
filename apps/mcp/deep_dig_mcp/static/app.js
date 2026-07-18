@@ -44,7 +44,6 @@ async function parseFile(file) {
     $("markdownPreview").textContent = data.document.markdownPreview;
     $("previewMeta").textContent = `${data.document.textLength.toLocaleString()} 字符 · ${data.document.chunkPaths.length} 分块`;
     show("resultEmpty", false);
-    show("resultJson", false);
     show("previewPanel");
     if (data.document.warnings.length) {
       $("warningBox").innerHTML = data.document.warnings.map((item) => `<p>⚠ ${escapeHtml(item)}</p>`).join("");
@@ -91,15 +90,13 @@ async function pollExtraction() {
   if (!state.jobId) return;
   try {
     const data = await api(`/api/extractions/${state.jobId}`);
-    const job = data.extraction.job;
-    const processed = job.completed_items + job.failed_items;
-    const percent = job.total_items ? Math.round(processed / job.total_items * 100) : 4;
+    const job = data.status;
+    const processed = job.completedItems + job.failedItems;
+    const percent = job.totalItems ? Math.round(processed / job.totalItems * 100) : 4;
     $("progressBar").style.width = `${Math.max(4, percent)}%`;
-    $("jobSummary").textContent = `${statusLabel(job.status)} · ${processed}/${job.total_items} 个文档`;
+    $("jobSummary").textContent = `${statusLabel(job.status)} · ${processed}/${job.totalItems} 个文档`;
     if (["completed", "failed", "cancelled"].includes(job.status)) {
       window.clearTimeout(state.pollTimer);
-      $("resultJson").textContent = JSON.stringify(data.extraction.items, null, 2);
-      show("resultJson");
       show("exportButton", job.status === "completed");
       updateSubmitState();
       return;
@@ -146,4 +143,3 @@ for (const eventName of ["dragleave", "drop"]) {
 }
 $("dropzone").addEventListener("drop", (event) => parseFile(event.dataTransfer.files[0]));
 checkRuntime();
-

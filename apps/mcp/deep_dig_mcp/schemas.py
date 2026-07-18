@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -66,6 +64,9 @@ class ExtractionSubmission(ApiModel):
     reused: bool = False
 
 
-class ExtractionStatus(ApiModel):
-    job: dict[str, Any]
-    items: list[dict[str, Any]]
+class SafeJobStatus(ApiModel):
+    id: str
+    status: str
+    total_items: int
+    completed_items: int
+    failed_items: int

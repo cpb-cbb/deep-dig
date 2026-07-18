@@ -94,8 +94,8 @@ def create_app(service: DeepDigService | None = None) -> FastAPI:
 
     @app.get("/api/extractions/{job_id}")
     async def get_extraction(job_id: str) -> dict:
-        result = await runtime.get_extraction(job_id)
-        return {"ok": True, "extraction": result.model_dump(mode="json", by_alias=True)}
+        result = await runtime.get_extraction_status(job_id)
+        return {"ok": True, "status": result.model_dump(mode="json", by_alias=True)}
 
     @app.post("/api/extractions/{job_id}/export")
     async def export_extraction(job_id: str) -> FileResponse:

@@ -1,84 +1,110 @@
 # Architecture
 
-Deep Dig is a local-first materials-science extraction system with one workflow:
-`material_extraction`.
+Deep Dig separates local document handling from the hosted commercial service.
 
 ```text
-PDF under /workspace                   Browser upload to local container
-        |                                           |
-        v                                           v
-AI client -> stdio MCP                  Web UI on 127.0.0.1
-        |                                           |
-        +--------------- shared service ------------+
-                            |
-                 MarkItDown PDF conversion
-                 hash + versioned file cache
-                 quality / suspected-scan checks
-                 bounded Markdown chunks
-                            |
-             authenticated existing /jobs API
-                            |
-         PostgreSQL + Redis -> ARQ worker -> LLM
-                            |
-            normalized samples -> Excel export
+LOCAL TRUST BOUNDARY                         HOSTED TRUST BOUNDARY
+
+PDF -> Skill -> local parser                 MCP gateway (Streamable HTTP)
+              |                               |
+              +-- Markdown + metadata ------>+-- authenticate caller
+                                              +-- enforce access boundary
+                                              +-- submit/poll/export
+                                                       |
+                                                       v
+                                             FastAPI /jobs API
+                                                       |
+                                          PostgreSQL + Redis + ARQ
+                                                       |
+                                      private prompt + private schema
+                                                       |
+                                               result workbook
 ```
+
+The optional Docker Web UI is a separate visual client. It may reuse local parsing code and call the
+same hosted backend, but it is not part of the Skill-to-MCP execution path.
 
 ## Trust boundaries
 
-- The original document is read only inside the local container. MCP input is restricted to
-  `/workspace`; browser uploads use a temporary local file that is deleted after parsing.
-- `/output` is the only persistent writable mount. It contains Markdown, cache metadata, chunks,
-  and exported workbooks.
-- MCP responses return a `documentId`, metadata, warnings, paths, and a bounded preview rather than
-  the full Markdown. Follow-up tools resolve the cached content internally.
-- The backend receives parsed Markdown, file metadata, and requested property names. It never
-  receives original PDF bytes.
-- The API token is supplied through the process environment and is never serialized into cache or
-  returned by tools.
-- The container runs as a non-root user with a read-only root filesystem, dropped Linux
-  capabilities, and `no-new-privileges` in the supported run configurations.
+### Local Skill
+
+- Read the original PDF from a user-authorized local path.
+- Parse to Markdown, hash the bytes, assess text quality, and cache local artifacts.
+- Send only Markdown, file metadata, requested properties, and control identifiers remotely.
+- Never package or reconstruct server prompts, private extraction schemas, normalization rules, or
+  workbook mappings.
+
+### Hosted MCP
+
+- Run as a Streamable HTTP service reachable by supported AI clients.
+- Validate the caller bearer token against the backend and forward that same identity.
+- Expose only submission, job status, cancellation if added, and result-file export operations.
+- Never return raw `parsed_result`, LLM output JSON, private schema resources, or prompt resources.
+- Keep tool descriptions limited to the public product contract.
+
+### Backend
+
+- Own accounts, quota, rate limits, plans, future billing records, jobs, and exports.
+- Own provider credentials, prompts, private extraction schemas, validation, retries, normalization,
+  and Excel generation.
+- Treat the MCP as a user-facing gateway, not as a trusted shared service account.
+
+## Public and private contracts
+
+Public MCP information is intentionally small:
+
+- submission acknowledgement with a job identifier;
+- status and progress counters;
+- safe user-facing error codes/messages;
+- an exported result file.
+
+Private server information includes:
+
+- prompt text and prompt construction;
+- LLM response schema and intermediate reasoning fields;
+- normalization and reconciliation rules;
+- raw per-item `parsed_result` payloads;
+- Excel field and sheet mappings.
+
+The backend HTTP API may retain internal endpoints needed by trusted first-party services. The MCP
+must not mirror those endpoints blindly.
 
 ## Source layout
 
 | Path | Responsibility |
 | --- | --- |
-| `apps/mcp/deep_dig_mcp/parser.py` | `DocumentParser` interface and MarkItDown adapter |
-| `apps/mcp/deep_dig_mcp/cache.py` | Atomic Markdown, metadata, and chunk persistence |
-| `apps/mcp/deep_dig_mcp/quality.py` | Low text and page-density checks; bounded chunking |
-| `apps/mcp/deep_dig_mcp/security.py` | Hashing, cache identity, input/output path boundaries |
-| `apps/mcp/deep_dig_mcp/service.py` | Shared parse, submit, poll, and export application service |
-| `apps/mcp/deep_dig_mcp/server.py` | Official Python MCP SDK stdio boundary |
-| `apps/mcp/deep_dig_mcp/web.py` | Local FastAPI Web UI boundary |
-| `apps/backend/app/routers` | Existing HTTP API, authentication, rate limits, responses |
-| `apps/backend/app/services` | Existing jobs, extraction, normalization, quota, export |
-| `.agents/skills/deep-dig` | AI workflow orchestration and result interpretation |
+| `.agents/skills/deep-dig` | Local parse workflow and remote MCP orchestration; no private schema |
+| `apps/mcp/deep_dig_mcp/server.py` | Hosted MCP public tool boundary |
+| `apps/mcp/deep_dig_mcp/gateway.py` | Safe submit/status/export service |
+| `apps/mcp/deep_dig_mcp/backend_client.py` | Identity-preserving backend HTTP calls |
+| `apps/mcp/deep_dig_mcp/parser.py` | Local parser reused by the optional visual runtime |
+| `apps/mcp/deep_dig_mcp/web.py` | Optional Docker Web UI boundary |
+| `apps/backend/app/routers` | Authenticated backend HTTP API |
+| `apps/backend/app/workers` | Private extraction execution |
+| `packages/workflows` | Server-only prompts and private definitions |
 
-## Parse lifecycle
+## Local parse lifecycle
 
-1. Resolve the path and reject files outside the allowed mount, unsupported formats, empty files,
-   oversized files, and symlink escapes.
+1. Resolve a user-authorized digital PDF path.
 2. Hash the original bytes with SHA-256.
-3. Build a cache identity from file hash, parser name, parser version, and canonical configuration.
-4. Return the cached result when both metadata and Markdown are valid.
-5. Convert the PDF with MarkItDown and count PDF pages with pypdf.
-6. Mark empty, unusually short, or low-density text as `needsOcr` and attach warnings.
-7. Atomically persist full Markdown, metadata, and bounded chunks beneath `/output/cache/<id>`.
+3. Convert the PDF to Markdown locally.
+4. Detect empty or unusually sparse text and stop for OCR consent when required.
+5. Persist local Markdown and bounded chunks using a parser-versioned cache key.
+6. Pass Markdown and public metadata to the hosted MCP only after user intent is clear.
 
-## Extraction lifecycle
+## Hosted extraction lifecycle
 
-1. `submit_material_extraction` resolves cached Markdown by `documentId` and validates properties.
-2. Suspected scans require explicit low-quality consent. Empty Markdown is never submitted.
-3. Text above the current backend `200_000` character limit returns a structured local error and
-   chunk paths; chunks are not treated as independent papers.
-4. The existing `POST /jobs` endpoint reserves quota and queues one item.
-5. `get_extraction` combines `GET /jobs/{id}` and `GET /jobs/{id}/items`.
-6. `export_extraction_xlsx` downloads the existing backend workbook into `/output`.
+1. Authenticate the MCP caller and preserve the caller token when invoking the backend.
+2. Validate public inputs without revealing the private workflow schema.
+3. Submit `material_extraction` to the backend with a stable idempotency key.
+4. Return a job identifier and safe status counters only.
+5. Keep per-item JSON private.
+6. Return the completed workbook as an MCP binary resource.
 
 ## Extension rules
 
-- Add future converters behind `DocumentParser`; keep MCP and Web contracts stable.
-- Include every parser behavior change in the parser configuration fingerprint or version.
-- Keep `material_extraction` as a durable backend workflow identifier.
-- Do not add automatic chunk submission until sample reconciliation and deduplication have an
-  explicit design and tests.
+- Add billing behind the existing user identity; never introduce a shared MCP backend token.
+- Version private prompts and schemas server-side without updating the local Skill.
+- Keep the public MCP contract backward compatible and deliberately smaller than the backend API.
+- Do not add raw-result tools or schema resources to the MCP.
 

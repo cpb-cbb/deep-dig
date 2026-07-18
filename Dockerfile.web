@@ -1,0 +1,39 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEEP_DIG_WORKSPACE_DIR=/workspace \
+    DEEP_DIG_OUTPUT_DIR=/output
+
+WORKDIR /app
+
+COPY infra/docker/pyproject.web.toml ./pyproject.toml
+COPY apps/mcp/deep_dig_mcp/__init__.py ./deep_dig_mcp/__init__.py
+COPY apps/mcp/deep_dig_mcp/backend_client.py ./deep_dig_mcp/backend_client.py
+COPY apps/mcp/deep_dig_mcp/cache.py ./deep_dig_mcp/cache.py
+COPY apps/mcp/deep_dig_mcp/errors.py ./deep_dig_mcp/errors.py
+COPY apps/mcp/deep_dig_mcp/parser.py ./deep_dig_mcp/parser.py
+COPY apps/mcp/deep_dig_mcp/quality.py ./deep_dig_mcp/quality.py
+COPY apps/mcp/deep_dig_mcp/schemas.py ./deep_dig_mcp/schemas.py
+COPY apps/mcp/deep_dig_mcp/security.py ./deep_dig_mcp/security.py
+COPY apps/mcp/deep_dig_mcp/service.py ./deep_dig_mcp/service.py
+COPY apps/mcp/deep_dig_mcp/settings.py ./deep_dig_mcp/settings.py
+COPY apps/mcp/deep_dig_mcp/web.py ./deep_dig_mcp/web.py
+COPY apps/mcp/deep_dig_mcp/static ./deep_dig_mcp/static
+COPY apps/mcp/deep_dig_mcp/templates ./deep_dig_mcp/templates
+RUN python -m pip install --no-cache-dir .
+
+COPY infra/docker/entrypoint.sh /usr/local/bin/deep-dig-entrypoint
+RUN groupadd --gid 10001 deepdig \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin deepdig \
+    && mkdir -p /workspace /output \
+    && chown -R deepdig:deepdig /output \
+    && chmod 0755 /usr/local/bin/deep-dig-entrypoint
+
+USER deepdig
+VOLUME ["/workspace", "/output"]
+EXPOSE 8787
+
+ENTRYPOINT ["/usr/local/bin/deep-dig-entrypoint"]
+CMD ["web"]

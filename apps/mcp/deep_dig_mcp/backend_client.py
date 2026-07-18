@@ -47,14 +47,14 @@ class DeepDigBackendClient:
             },
         )
 
+    async def get_me(self) -> dict[str, Any]:
+        result = await self._request_json("GET", "/me")
+        if not isinstance(result, dict):
+            raise BackendApiError("INVALID_BACKEND_RESPONSE", "Backend returned invalid user data")
+        return result
+
     async def get_job(self, job_id: str) -> dict[str, Any]:
         return await self._request_json("GET", f"/jobs/{job_id}")
-
-    async def get_job_items(self, job_id: str) -> list[dict[str, Any]]:
-        result = await self._request_json("GET", f"/jobs/{job_id}/items")
-        if not isinstance(result, list):
-            raise BackendApiError("INVALID_BACKEND_RESPONSE", "Backend returned invalid job items")
-        return result
 
     async def export_xlsx(self, job_id: str) -> bytes:
         response = await self._request("GET", f"/jobs/{job_id}/export.xlsx")

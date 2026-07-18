@@ -44,3 +44,26 @@ async def test_backend_submission_matches_existing_jobs_api() -> None:
     assert captured["auth"] == "Bearer secret-token"
     assert captured["payload"]["workflow_id"] == "material_extraction"
     assert captured["payload"]["items"][0]["text"] == "# Paper"
+
+
+@pytest.mark.asyncio
+async def test_backend_identity_check_uses_caller_token() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        captured["auth"] = request.headers["authorization"]
+        return httpx.Response(
+            200,
+            json={"id": "00000000-0000-0000-0000-000000000001", "email": "user@example.com"},
+        )
+
+    client = DeepDigBackendClient(
+        base_url="https://api.example.test",
+        token="caller-token",
+        timeout_seconds=5,
+        transport=httpx.MockTransport(handler),
+    )
+    user = await client.get_me()
+    assert user["email"] == "user@example.com"
+    assert captured == {"path": "/me", "auth": "Bearer caller-token"}

@@ -71,6 +71,35 @@ Task** when it is no longer needed.
 Use **Backend: FastAPI** or **Backend: Worker** when only one process needs to be
 debugged and Redis is already running.
 
+## Hosted MCP
+
+Run the Streamable HTTP gateway separately:
+
+```bash
+cd apps/mcp
+uv sync --frozen
+DEEP_DIG_API_BASE_URL=http://127.0.0.1:8001 \
+DEEP_DIG_MCP_PUBLIC_URL=http://127.0.0.1:8002/mcp \
+uv run python -m deep_dig_mcp.server
+```
+
+The endpoint is `/mcp` on port `8002`. Use an actual user bearer token when connecting a client.
+The public MCP contract must not return `/jobs/{id}/items`, `parsed_result`, prompts, or schemas.
+
+## Local Skill parsing
+
+The Skill parses a PDF locally before invoking the hosted MCP. Run its parser directly for a smoke
+test:
+
+```bash
+uv run .agents/skills/deep-dig/scripts/parse_document.py \
+  /absolute/path/to/paper.pdf \
+  --output-dir deep-dig-output
+```
+
+The parser prints public metadata and local cache paths. It does not contain or request the private
+extraction schema.
+
 For a platform that provides an OpenAI-compatible API, configure:
 
 ```env

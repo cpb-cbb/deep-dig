@@ -1,38 +1,28 @@
-name: deep-dig-local
-
-x-deep-dig-runtime: &deep-dig-runtime
-  build:
-    context: .
-    dockerfile: Dockerfile.mcp
-  image: deep-dig-mcp:local
-  user: "${DEEP_DIG_UID:-1000}:${DEEP_DIG_GID:-1000}"
-  read_only: true
-  cap_drop:
-    - ALL
-  security_opt:
-    - no-new-privileges:true
-  tmpfs:
-    - /tmp:size=128m,mode=1777
-  environment:
-    DEEP_DIG_API_BASE_URL: "${DEEP_DIG_API_BASE_URL:-http://host.docker.internal:8001}"
-    DEEP_DIG_API_TOKEN: "${DEEP_DIG_API_TOKEN:-}"
-  volumes:
-    - "${DEEP_DIG_WORKSPACE:-.}:/workspace:ro"
-    - "${DEEP_DIG_OUTPUT_DIR:-./deep-dig-output}:/output"
-  extra_hosts:
-    - host.docker.internal:host-gateway
+name: deep-dig-visual
 
 services:
   web:
-    <<: *deep-dig-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: deep-dig-web:local
     command: web
+    user: "${DEEP_DIG_UID:-1000}:${DEEP_DIG_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    environment:
+      DEEP_DIG_API_BASE_URL: "${DEEP_DIG_API_BASE_URL:-http://host.docker.internal:8001}"
+      DEEP_DIG_API_TOKEN: "${DEEP_DIG_API_TOKEN:-}"
+    volumes:
+      - "${DEEP_DIG_WORKSPACE:-.}:/workspace:ro"
+      - "${DEEP_DIG_OUTPUT_DIR:-./deep-dig-output}:/output"
+    extra_hosts:
+      - host.docker.internal:host-gateway
     ports:
       - "127.0.0.1:${DEEP_DIG_WEB_PORT:-8787}:8787"
-
-  mcp:
-    <<: *deep-dig-runtime
-    command: mcp
-    profiles:
-      - mcp
-    stdin_open: true
 

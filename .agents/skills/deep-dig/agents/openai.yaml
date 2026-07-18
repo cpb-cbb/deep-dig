@@ -1,15 +1,14 @@
 interface:
   display_name: "Deep Dig 文档抽取"
-  short_description: "本地解析科研文档并编排材料数据抽取与 Excel 导出"
-  default_prompt: "Use $deep-dig to parse a local paper, extract the requested material properties, and export the result."
+  short_description: "在本地解析科研论文并调用托管服务生成材料数据工作簿"
+  default_prompt: "Use $deep-dig to parse a local paper, submit the requested properties to the hosted service, and download the workbook."
 
 dependencies:
   tools:
     - type: "mcp"
       value: "deep-dig"
-      description: "Dockerized local parser and Deep Dig extraction tools"
-      transport: "stdio"
+      description: "Hosted authenticated Deep Dig submission, status, and workbook tools"
+      transport: "streamable_http"
 
 policy:
   allow_implicit_invocation: true
-
