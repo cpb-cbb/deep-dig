@@ -12,16 +12,15 @@ REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 AUTH_MODE="env"
 LLM_MODE="env"
-WITH_DESKTOP="true"
 
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/deep-dig-dev.sh start [--auth env|real|dev] [--llm env|real|fake] [--no-desktop]
+  scripts/deep-dig-dev.sh start [--auth env|real|dev] [--llm env|real|fake]
   scripts/deep-dig-dev.sh stop
   scripts/deep-dig-dev.sh restart [same options as start]
   scripts/deep-dig-dev.sh status
-  scripts/deep-dig-dev.sh logs [api|worker|redis|desktop]
+  scripts/deep-dig-dev.sh logs [api|worker|redis]
 
 Modes:
   --auth env   read DEV_AUTH_ENABLED from apps/backend/.env
@@ -132,11 +131,6 @@ start_worker() {
   start_process worker "$ROOT_DIR/apps/backend" env ${backend_env_args[@]+"${backend_env_args[@]}"} uv run arq app.workers.arq_worker.WorkerSettings
 }
 
-start_desktop() {
-  [[ "$WITH_DESKTOP" == "true" ]] || return
-  start_process desktop "$ROOT_DIR/apps/desktop" env "VITE_API_BASE_URL=http://$API_HOST:$API_PORT" pnpm tauri dev
-}
-
 stop_process() {
   local name="$1"
   local pid
@@ -163,7 +157,6 @@ stop_process() {
 }
 
 stop_all() {
-  stop_process desktop
   stop_process worker
   stop_process api
   if [[ "$(cat "$(meta_file redis)" 2>/dev/null || true)" == "managed" ]]; then
@@ -189,7 +182,6 @@ status_all() {
   status_one redis
   status_one api
   status_one worker
-  status_one desktop
   if port_open "$API_HOST" "$API_PORT"; then
     echo "api port: open at http://$API_HOST:$API_PORT"
   else
@@ -226,14 +218,6 @@ parse_start_args() {
         LLM_MODE="${2:-}"
         shift 2
         ;;
-      --no-desktop)
-        WITH_DESKTOP="false"
-        shift
-        ;;
-      --desktop)
-        WITH_DESKTOP="true"
-        shift
-        ;;
       -h|--help)
         usage
         exit 0
@@ -257,7 +241,6 @@ main() {
       start_redis
       start_api
       start_worker
-      start_desktop
       status_all
       ;;
     stop)
@@ -269,7 +252,6 @@ main() {
       start_redis
       start_api
       start_worker
-      start_desktop
       status_all
       ;;
     status)

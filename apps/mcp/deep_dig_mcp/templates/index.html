@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Deep Dig Local</title>
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <header class="shell nav">
+      <a class="brand" href="/" aria-label="Deep Dig Local">
+        <span class="brand-mark"><i></i><i></i><i></i></span>
+        <span>DEEP DIG <em>LOCAL</em></span>
+      </a>
+      <div class="runtime"><span id="runtimeDot"></span><b id="runtimeText">正在检查本地解析器</b></div>
+    </header>
+
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">LOCAL-FIRST · MATERIAL INTELLIGENCE</p>
+          <h1>把论文留在本地，<br><span>把数据带回表格。</span></h1>
+        </div>
+        <p class="hero-copy">MarkItDown 在 Docker 中解析原始 PDF，仅把 Markdown 提交给 Deep Dig 后端完成材料数据抽取。</p>
+      </section>
+
+      <section class="workflow-grid">
+        <article class="panel upload-panel">
+          <div class="panel-title"><span>01</span><div><h2>解析文档</h2><p>首版支持数字版 PDF</p></div></div>
+          <label class="dropzone" id="dropzone">
+            <input id="fileInput" type="file" accept="application/pdf,.pdf">
+            <span class="drop-icon">＋</span>
+            <strong>拖入论文，或点击选择</strong>
+            <small>PDF 不会上传到外部文件服务</small>
+          </label>
+          <div class="file-row hidden" id="fileRow">
+            <div class="file-icon">PDF</div>
+            <div><b id="fileName"></b><small id="fileMeta"></small></div>
+            <span id="parseState">等待解析</span>
+          </div>
+          <div class="warning-box hidden" id="warningBox"></div>
+        </article>
+
+        <article class="panel fields-panel">
+          <div class="panel-title"><span>02</span><div><h2>定义提取属性</h2><p>每行一个属性，也可使用逗号</p></div></div>
+          <textarea id="properties" placeholder="材料名称&#10;化学成分&#10;热处理温度&#10;抗拉强度&#10;延伸率"></textarea>
+          <label class="low-quality hidden" id="lowQualityLabel">
+            <input id="allowLowQuality" type="checkbox"> 仍然提交低文本质量结果
+          </label>
+          <button class="primary" id="submitButton" disabled>开始提取 <span>→</span></button>
+        </article>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-title result-title">
+          <span>03</span>
+          <div><h2>任务与结果</h2><p id="jobSummary">解析文档后即可创建任务</p></div>
+          <button class="export hidden" id="exportButton">导出 Excel <span>↗</span></button>
+        </div>
+        <div class="progress hidden" id="progress"><i id="progressBar"></i></div>
+        <div class="result-empty" id="resultEmpty">
+          <div>⌁</div><p>结构化结果将在这里显示</p>
+        </div>
+        <div class="document-preview hidden" id="previewPanel">
+          <div class="preview-head"><b>Markdown 预览</b><span id="previewMeta"></span></div>
+          <pre id="markdownPreview"></pre>
+        </div>
+        <pre class="result-json hidden" id="resultJson"></pre>
+      </section>
+    </main>
+
+    <div class="toast hidden" id="toast"></div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
+

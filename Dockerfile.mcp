@@ -1,0 +1,28 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEEP_DIG_WORKSPACE_DIR=/workspace \
+    DEEP_DIG_OUTPUT_DIR=/output
+
+WORKDIR /app
+
+COPY apps/mcp/pyproject.toml ./pyproject.toml
+COPY apps/mcp/deep_dig_mcp ./deep_dig_mcp
+RUN python -m pip install --no-cache-dir .
+
+COPY infra/docker/entrypoint.sh /usr/local/bin/deep-dig-entrypoint
+RUN groupadd --gid 10001 deepdig \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin deepdig \
+    && mkdir -p /workspace /output \
+    && chown -R deepdig:deepdig /output \
+    && chmod 0755 /usr/local/bin/deep-dig-entrypoint
+
+USER deepdig
+VOLUME ["/workspace", "/output"]
+EXPOSE 8787
+
+ENTRYPOINT ["/usr/local/bin/deep-dig-entrypoint"]
+CMD ["mcp"]
+

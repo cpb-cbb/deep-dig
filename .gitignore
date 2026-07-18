@@ -17,6 +17,6 @@ __pycache__/
 *.sqlite
 *.db
 *.rdb
-apps/desktop/src-tauri/target/
 literature/
 .vscode/
+deep-dig-output/

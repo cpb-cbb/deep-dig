@@ -42,7 +42,7 @@ JOB_ACTION_USER_LIMIT_PER_MINUTE=10
 JOB_ACTION_IP_LIMIT_PER_MINUTE=40
 ```
 
-Desktop task submissions send an `Idempotency-Key`. API clients should reuse the
+Task submissions send an `Idempotency-Key`. API clients should reuse the
 same key when retrying the same logical submission; keys are unique per user.
 Apply every Alembic migration before deploying a backend that accepts these
 requests.
@@ -82,33 +82,6 @@ LLM_COMPAT_MODEL=your-model-name
 
 `LLM_COMPAT_BASE_URL` may be either the `/v1` base URL or the full
 `/v1/chat/completions` URL.
-
-## Desktop PDF Parsing
-
-The desktop parser is a local `uv` Python project under `apps/desktop`.
-It uses `pymupdf4llm` to convert a user-selected PDF into Markdown before the
-text is submitted to the backend.
-
-```bash
-cd apps/desktop
-uv sync
-uv run python -m desktop_parser.parse_pdf /absolute/path/to/input.pdf
-```
-
-The command prints JSON with `fileName`, `fileHash`, `text`, `textFormat`, and
-`textLength`. The `text` field remains compatible with the existing `/jobs`
-payload and contains Markdown.
-
-The Tauri desktop UI uses the same parser through the `parse_pdf_to_markdown`
-native command. During development, run the app from `apps/desktop` so the
-native command can execute `uv run python -m desktop_parser.parse_pdf` in that
-directory:
-
-```bash
-cd apps/desktop
-uv sync
-pnpm tauri dev
-```
 
 ## Contracts
 
