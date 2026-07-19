@@ -15,21 +15,21 @@ responses include `Retry-After` when known.
 
 ## Endpoints
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `GET` | `/healthz` | No | Liveness response |
-| `GET` | `/version` | No | Application version and environment |
-| `GET` | `/workflows` | No | List the single supported material workflow |
-| `GET` | `/workflows/material_extraction` | No | Get workflow display metadata |
-| `GET` | `/me` | Yes | Account, plan, quota, and settings |
-| `PATCH` | `/me` | Yes | Update display name or user settings |
-| `POST` | `/jobs` | Yes | Validate and queue a document batch |
-| `GET` | `/jobs` | Yes | List recent jobs owned by the caller |
-| `GET` | `/jobs/{job_id}` | Yes | Read one owned job |
-| `GET` | `/jobs/{job_id}/items` | Yes | Read per-document results |
-| `POST` | `/jobs/{job_id}/cancel` | Yes | Cancel pending or running work |
-| `GET` | `/jobs/{job_id}/export.xlsx` | Yes | Download a terminal job workbook |
-| `GET` | `/jobs/{job_id}/events` | Yes | Optional server-sent progress stream |
+| Method    | Path                               | Auth | Purpose                                     |
+| --------- | ---------------------------------- | ---- | ------------------------------------------- |
+| `GET`   | `/healthz`                       | No   | Liveness response                           |
+| `GET`   | `/version`                       | No   | Application version and environment         |
+| `GET`   | `/workflows`                     | No   | List the single supported material workflow |
+| `GET`   | `/workflows/material_extraction` | No   | Get workflow display metadata               |
+| `GET`   | `/me`                            | Yes  | Account, plan, quota, and settings          |
+| `PATCH` | `/me`                            | Yes  | Update display name or user settings        |
+| `POST`  | `/jobs`                          | Yes  | Validate and queue a document batch         |
+| `GET`   | `/jobs`                          | Yes  | List recent jobs owned by the caller        |
+| `GET`   | `/jobs/{job_id}`                 | Yes  | Read one owned job                          |
+| `GET`   | `/jobs/{job_id}/items`           | Yes  | Read per-document results                   |
+| `POST`  | `/jobs/{job_id}/cancel`          | Yes  | Cancel pending or running work              |
+| `GET`   | `/jobs/{job_id}/export.xlsx`     | Yes  | Download a terminal job workbook            |
+| `GET`   | `/jobs/{job_id}/events`          | Yes  | Optional server-sent progress stream        |
 
 ## Create a job
 

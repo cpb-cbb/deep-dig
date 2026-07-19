@@ -2,10 +2,10 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,8 +41,12 @@ fn sha256_file(path: &PathBuf) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn parse_pdf_to_markdown(path: String, output_dir: String) -> Result<ParsedPdf, String> {
-    let pdf_path = PathBuf::from(path);
+async fn parse_pdf_to_markdown(
+    app: tauri::AppHandle,
+    path: String,
+    output_dir: String,
+) -> Result<ParsedPdf, String> {
+    let pdf_path = PathBuf::from(&path);
     if !pdf_path.is_file() {
         return Err(format!("PDF file not found: {}", pdf_path.display()));
     }
@@ -51,13 +55,15 @@ fn parse_pdf_to_markdown(path: String, output_dir: String) -> Result<ParsedPdf, 
     let storage_dir = PathBuf::from(output_dir)
         .join("deep-dig-parsed")
         .join(&storage_key[..2]);
-    fs::create_dir_all(&storage_dir).map_err(|error| format!("Failed to create parsed text folder: {error}"))?;
+    fs::create_dir_all(&storage_dir)
+        .map_err(|error| format!("Failed to create parsed text folder: {error}"))?;
     let storage_path = storage_dir.join(format!("{storage_key}.json"));
     let storage_path_display = storage_path.display().to_string();
 
     if storage_path.is_file() {
         let mut parsed: ParsedPdf = serde_json::from_slice(
-            &fs::read(&storage_path).map_err(|error| format!("Failed to read parsed text file: {error}"))?,
+            &fs::read(&storage_path)
+                .map_err(|error| format!("Failed to read parsed text file: {error}"))?,
         )
         .map_err(|error| format!("Parsed text file is invalid: {error}"))?;
         parsed.reused = true;
@@ -65,16 +71,13 @@ fn parse_pdf_to_markdown(path: String, output_dir: String) -> Result<ParsedPdf, 
         return Ok(parsed);
     }
 
-    let desktop_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .ok_or_else(|| "Unable to locate desktop parser project".to_string())?
-        .to_path_buf();
-
-    let output = Command::new("uv")
-        .args(["run", "python", "-m", "desktop_parser.parse_pdf"])
-        .arg(&pdf_path)
-        .current_dir(desktop_dir)
+    let output = app
+        .shell()
+        .sidecar("deep-dig-parser")
+        .map_err(|error| format!("Failed to locate bundled PDF parser: {error}"))?
+        .arg(&path)
         .output()
+        .await
         .map_err(|error| format!("Failed to start local PDF parser: {error}"))?;
 
     if !output.status.success() {
@@ -93,7 +96,8 @@ fn parse_pdf_to_markdown(path: String, output_dir: String) -> Result<ParsedPdf, 
     parsed.storage_path = Some(storage_path_display);
     let parsed_json = serde_json::to_vec_pretty(&parsed)
         .map_err(|error| format!("Failed to serialize parsed text: {error}"))?;
-    fs::write(&storage_path, parsed_json).map_err(|error| format!("Failed to save parsed text: {error}"))?;
+    fs::write(&storage_path, parsed_json)
+        .map_err(|error| format!("Failed to save parsed text: {error}"))?;
     Ok(parsed)
 }
 
@@ -105,7 +109,11 @@ fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![parse_pdf_to_markdown, write_binary_file])
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![
+            parse_pdf_to_markdown,
+            write_binary_file
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Deep Dig desktop app");
 }

@@ -86,7 +86,7 @@ LLM_COMPAT_MODEL=your-model-name
 ## Desktop PDF Parsing
 
 The desktop parser is a local `uv` Python project under `apps/desktop`.
-It uses `pymupdf4llm` to convert a user-selected PDF into Markdown before the
+It uses `markitdown` to convert a user-selected PDF into Markdown before the
 text is submitted to the backend.
 
 ```bash

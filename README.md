@@ -1,3 +1,21 @@
+(base) caopengbo@192 deep-dig % pnpm dev:start
+
+> deep-dig@0.1.0 dev:start /Users/caopengbo/Documents/code/deep-dig
+> scripts/deep-dig-dev.sh start
+
+redis already available on 127.0.0.1:6379
+api already running (pid 37699)
+worker already running (pid 37706)
+Starting desktop...
+desktop pid 42444
+redis: running (pid 37691)
+api: running (pid 37699)
+worker: running (pid 37706)
+desktop: running (pid 42444)
+api port: open at http://127.0.0.1:8001
+redis port: open at 127.0.0.1:6379
+(base) caopengbo@192 deep-dig %
+
 # Deep Dig
 
 Deep Dig is a desktop-first AI extraction tool for materials-science papers. The desktop parses
@@ -49,6 +67,15 @@ Or run the complete local stack from the repository root:
 pnpm dev:start -- --auth dev --llm fake
 ```
 
+Build a self-contained installer for the current desktop platform:
+
+```bash
+pnpm build:desktop:native
+```
+
+The installer bundles the local PDF parser; end users do not need Python or `uv`. See
+[Desktop development](docs/desktop-development.md) for macOS/Windows release and signing details.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -56,6 +83,7 @@ pnpm dev:start -- --auth dev --llm fake
 - [Desktop development](docs/desktop-development.md)
 - [API reference](docs/api-reference.md)
 - [Development runbook](docs/runbooks/development.md)
+- [Web deployment runbook](docs/runbooks/web-deployment.md)
 - [Roadmap](docs/roadmap.md)
 
 ## MVP boundaries

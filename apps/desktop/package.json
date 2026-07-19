@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:sidecar": "uv run --group build python scripts/build_sidecar.py",
+    "build:native": "tauri build",
     "parse:pdf": "uv run python -m desktop_parser.parse_pdf",
     "tauri": "tauri"
   },
