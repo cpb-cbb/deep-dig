@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
-import pymupdf4llm
+from markitdown import MarkItDown
 
 
 def sha256_file(path: Path) -> str:
@@ -23,7 +23,7 @@ def parse_pdf(path: Path) -> dict[str, object]:
     if pdf_path.suffix.lower() != ".pdf":
         raise ValueError(f"Expected a .pdf file: {pdf_path}")
 
-    markdown = pymupdf4llm.to_markdown(str(pdf_path))
+    markdown = MarkItDown(enable_plugins=False).convert(pdf_path).text_content
     return {
         "fileName": pdf_path.name,
         "fileHash": sha256_file(pdf_path),

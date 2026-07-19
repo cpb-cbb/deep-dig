@@ -86,7 +86,7 @@ def build(target: str, force: bool) -> Path:
             "--specpath",
             str(spec_dir),
             "--collect-data",
-            "pymupdf",
+            "magika",
             str(ENTRY_POINT),
         ]
     )

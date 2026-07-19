@@ -38,7 +38,7 @@ also verifies Rust, Tauri capabilities, icons, and platform packaging.
 1. React opens Tauri's native file and folder dialogs.
 2. Rust hashes the PDF and checks `<selected-dir>/deep-dig-parsed/<prefix>/<hash>.json`.
 3. On a cache miss, Rust runs the bundled `deep-dig-parser` sidecar.
-4. The sidecar uses `pymupdf4llm` and returns JSON on stdout.
+4. The sidecar uses `markitdown` and returns JSON on stdout.
 5. Rust persists that JSON; React submits only the parsed text and metadata to the API.
 
 The parser can be tested independently:
@@ -86,8 +86,8 @@ Unsigned builds are suitable for internal smoke testing. Public macOS distributi
 Developer ID signed and notarized. Public Windows distribution should also use an Authenticode
 certificate to avoid reputation warnings.
 
-`pymupdf4llm` is dual-licensed under AGPL and commercial terms. Confirm that the chosen license is
-compatible with the intended distribution before publishing a proprietary installer.
+`markitdown` is distributed under the MIT license. Review the licenses of its PDF dependencies
+before publishing an installer.
 
 ## Frontend structure
 
