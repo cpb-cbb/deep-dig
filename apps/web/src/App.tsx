@@ -112,6 +112,7 @@ const translations = {
     downloadTitle: ['在你的电脑上，', '开始深挖。'],
     downloadLede: 'Deep Dig 桌面客户端正在准备中。首个版本将支持 macOS 与 Windows。',
     downloadNote: '下载开放后，我们会在这里第一时间更新。',
+    contact: '联系我们',
     comingSoon: '即将上线',
     macTitle: 'macOS 客户端即将上线',
     windowsTitle: 'Windows 客户端即将上线',
@@ -192,6 +193,7 @@ const translations = {
     downloadTitle: ['Dig deeper,', 'right on your desktop.'],
     downloadLede: 'The Deep Dig desktop app is on its way. The first release will support macOS and Windows.',
     downloadNote: 'Download links will appear here as soon as the apps are ready.',
+    contact: 'Contact',
     comingSoon: 'Coming soon',
     macTitle: 'Deep Dig for macOS is coming soon',
     windowsTitle: 'Deep Dig for Windows is coming soon',
@@ -395,7 +397,14 @@ export function App() {
 
       <footer className="site-footer">
         <div className="brand footer-brand"><span className="brand-mark" aria-hidden="true"><span /></span><span>Deep Dig</span></div>
-        <p>Extract less. Discover more.</p><span>© 2026 DEEP DIG</span>
+        <div className="footer-center">
+          <p>Extract less. Discover more.</p>
+          <a className="footer-contact" href="mailto:cbb4611@gmail.com">
+            <span>{t.contact}</span>
+            cbb4611@gmail.com
+          </a>
+        </div>
+        <span>© 2026 DEEP DIG</span>
       </footer>
     </main>
   );

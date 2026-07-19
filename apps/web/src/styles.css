@@ -1250,6 +1250,34 @@ button {
   letter-spacing: .05em;
 }
 
+.footer-center {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.footer-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.footer-contact span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.footer-contact:hover {
+  border-color: var(--ink);
+  color: var(--acid-dark);
+}
+
 .site-footer > span {
   justify-self: end;
   color: var(--muted);
@@ -1420,6 +1448,24 @@ button {
   }
 
   .site-footer p { display: none; }
+
+  .footer-center {
+    justify-self: center;
+  }
+}
+
+@media (max-width: 580px) {
+  .site-footer {
+    min-height: 140px;
+    grid-template-columns: 1fr auto;
+    align-content: center;
+  }
+
+  .footer-center {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
 }
 
 @media (max-width: 520px) {
