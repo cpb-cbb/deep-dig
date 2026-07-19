@@ -9,6 +9,8 @@
     "dev:restart": "scripts/deep-dig-dev.sh restart",
     "dev:status": "scripts/deep-dig-dev.sh status",
     "dev:desktop": "pnpm --filter @deep-dig/desktop dev",
+    "dev:web": "pnpm --filter @deep-dig/web dev",
+    "build:web": "pnpm --filter @deep-dig/web build",
     "build:desktop": "pnpm --filter @deep-dig/desktop build",
     "build:desktop:native": "pnpm --filter @deep-dig/desktop build:native",
     "check:backend": "cd apps/backend && uv run ruff format --check app tests && uv run ruff check app tests && uv run pytest",
