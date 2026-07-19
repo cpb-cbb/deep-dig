@@ -1,3 +1,21 @@
+(base) caopengbo@192 deep-dig % pnpm dev:start
+
+> deep-dig@0.1.0 dev:start /Users/caopengbo/Documents/code/deep-dig
+> scripts/deep-dig-dev.sh start
+
+redis already available on 127.0.0.1:6379
+api already running (pid 37699)
+worker already running (pid 37706)
+Starting desktop...
+desktop pid 42444
+redis: running (pid 37691)
+api: running (pid 37699)
+worker: running (pid 37706)
+desktop: running (pid 42444)
+api port: open at http://127.0.0.1:8001
+redis port: open at 127.0.0.1:6379
+(base) caopengbo@192 deep-dig %
+
 # Deep Dig
 
 Deep Dig is a desktop-first AI extraction tool for materials-science papers. The desktop parses
