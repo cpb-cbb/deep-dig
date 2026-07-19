@@ -83,6 +83,7 @@ The installer bundles the local PDF parser; end users do not need Python or `uv`
 - [Desktop development](docs/desktop-development.md)
 - [API reference](docs/api-reference.md)
 - [Development runbook](docs/runbooks/development.md)
+- [Web deployment runbook](docs/runbooks/web-deployment.md)
 - [Roadmap](docs/roadmap.md)
 
 ## MVP boundaries

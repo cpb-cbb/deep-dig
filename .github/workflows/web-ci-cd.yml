@@ -1,0 +1,104 @@
+name: Web CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/web-ci-cd.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/web-ci-cd.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        run: pnpm build:web
+
+      - name: Configure deployment SSH
+        if: github.event_name != 'pull_request'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy immutable release
+        if: github.event_name != 'pull_request'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          release_id="${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}"
+          release="/var/www/deep-dig-web/releases/${release_id}"
+          ssh_target="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+          ssh -o BatchMode=yes "$ssh_target" "mkdir '$release'"
+          scp -o BatchMode=yes -r apps/web/dist/. "$ssh_target:$release/"
+
+          local_sha=$(sha256sum apps/web/dist/index.html | cut -d' ' -f1)
+          remote_sha=$(ssh -o BatchMode=yes "$ssh_target" "sha256sum '$release/index.html' | cut -d' ' -f1")
+          test "$local_sha" = "$remote_sha"
+
+          ssh -o BatchMode=yes "$ssh_target" \
+            "test -f '$release/index.html' &&
+             test -d '$release/assets' &&
+             cd /var/www/deep-dig-web &&
+             ln -s 'releases/${release_id}' current.next &&
+             mv -Tf current.next current"
+
+      - name: Verify production
+        if: github.event_name != 'pull_request'
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 5 \
+            --retry-delay 2 \
+            "https://aiready.chat/?deploy_check=${GITHUB_SHA}" \
+            | grep -q "Deep Dig"
