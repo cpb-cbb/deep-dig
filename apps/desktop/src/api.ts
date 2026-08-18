@@ -13,9 +13,24 @@ export async function apiFetch<T>(path: string, token: string, init: RequestInit
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
-      'X-Client-Version': 'deep-dig-desktop/0.1.0',
+      'X-Client-Version': 'deep-dig-web/0.1.0',
       ...(init.headers ?? {}),
     },
+  });
+  if (!response.ok) throw await readProblem(response);
+  return response.json();
+}
+
+export async function apiUpload<T>(path: string, token: string, files: File[]): Promise<T> {
+  const formData = new FormData();
+  for (const file of files) formData.append('files', file);
+  const response = await request(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-Client-Version': 'deep-dig-web/0.1.0',
+    },
+    body: formData,
   });
   if (!response.ok) throw await readProblem(response);
   return response.json();
@@ -25,7 +40,7 @@ export async function apiDownload(path: string, token: string): Promise<ArrayBuf
   const response = await request(`${API_BASE}${path}`, {
     headers: {
       'Authorization': `Bearer ${token}`,
-      'X-Client-Version': 'deep-dig-desktop/0.1.0',
+      'X-Client-Version': 'deep-dig-web/0.1.0',
     },
   });
   if (!response.ok) throw await readProblem(response);

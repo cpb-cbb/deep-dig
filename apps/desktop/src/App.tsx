@@ -1,17 +1,13 @@
-import { createClient } from '@supabase/supabase-js';
 import {
   CheckCircle2,
   Clock3,
   Download,
   FileText,
-  FolderOutput,
-  KeyRound,
   ListChecks,
   LogIn,
   LogOut,
   Play,
   RefreshCw,
-  UserPlus,
   X,
   XCircle,
 } from 'lucide-react';
@@ -34,29 +30,18 @@ import {
   type JobItemOut,
   type JobOut,
   type MeOut,
+  type ParsedFile,
+  type SelectedPdf,
 } from './domain';
-import { chooseParsedOutputDir, parsePdfToMarkdown, pickExcelSavePath, saveBytesToPath, selectPdfFiles, type ParsedFile, type SelectedPdf } from './native';
+import { parseFiles, selectPdfFiles } from './files';
 
-type AuthMode = 'sign-in' | 'sign-up' | 'reset-password';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-const DEV_TOKEN = (import.meta.env.VITE_DEV_AUTH_TOKEN as string | undefined) ?? (import.meta.env.DEV ? 'dev' : '');
-const isDevAuth = !SUPABASE_URL || !SUPABASE_ANON_KEY;
+const TOKEN_STORAGE_KEY = 'deep-dig-token';
 const ACTIVE_JOB_REFRESH_MS = 6_000;
 const ACCOUNT_REFRESH_MS = 30_000;
 
-function createSupabaseAuthClient() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
-
-const supabase = createSupabaseAuthClient();
-
 export function App() {
   const [token, setToken] = useState('');
-  const [authMode, setAuthMode] = useState<AuthMode>('sign-in');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [profile, setProfile] = useState<MeOut | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<SelectedPdf[]>([]);
@@ -69,14 +54,11 @@ export function App() {
   const [propertiesText, setPropertiesText] = useState('BET surface area\ntotal pore volume\nspecific capacitance');
   const [isParsing, setIsParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState(0);
-  const [parsedOutputDir, setParsedOutputDir] = useState('');
   const [parseReusedCount, setParseReusedCount] = useState(0);
-  const [parsedStorageDir, setParsedStorageDir] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSelectingFiles, setIsSelectingFiles] = useState(false);
-  const [isSelectingOutput, setIsSelectingOutput] = useState(false);
   const [isAppVisible, setIsAppVisible] = useState(
     () => document.visibilityState === 'visible' && document.hasFocus(),
   );
@@ -92,7 +74,6 @@ export function App() {
   const authInFlightRef = useRef(false);
   const parseInFlightRef = useRef(false);
   const fileDialogInFlightRef = useRef(false);
-  const outputDialogInFlightRef = useRef(false);
   const jobActionsInFlightRef = useRef(new Set<string>());
 
   const selectedJob = useMemo(
@@ -118,15 +99,8 @@ export function App() {
   );
 
   useEffect(() => {
-    if (!supabase) return undefined;
-
-    void supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.access_token) setToken(data.session.access_token);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setToken(session?.access_token ?? '');
-    });
-    return () => data.subscription.unsubscribe();
+    const saved = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (saved) setToken(saved);
   }, []);
 
   useEffect(() => {
@@ -262,14 +236,6 @@ export function App() {
     authInFlightRef.current = true;
     setIsAuthenticating(true);
     try {
-      if (authMode === 'sign-up') {
-        await signUp();
-        return;
-      }
-      if (authMode === 'reset-password') {
-        await sendPasswordReset();
-        return;
-      }
       await signIn();
     } finally {
       authInFlightRef.current = false;
@@ -278,63 +244,23 @@ export function App() {
   }
 
   async function signIn() {
-    if (!supabase) {
-      setToken(DEV_TOKEN);
-      setStatus('Signed in with local dev auth.');
-      return;
-    }
     setStatus('Signing in...');
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setStatus(error.message);
-      return;
+    try {
+      const { access_token } = await apiFetch<{ access_token: string }>('/auth/login', '', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+      setToken(access_token);
+      localStorage.setItem(TOKEN_STORAGE_KEY, access_token);
+      setStatus('Signed in.');
+    } catch (error) {
+      setStatus(errorMessage(error));
     }
-    setToken(data.session?.access_token ?? '');
-    setStatus('Signed in.');
-  }
-
-  async function signUp() {
-    if (!supabase) {
-      setToken(DEV_TOKEN);
-      setStatus('Signed in with local dev auth.');
-      return;
-    }
-    setStatus('Creating account...');
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setStatus(error.message);
-      return;
-    }
-    if (data.session?.access_token) {
-      setToken(data.session.access_token);
-      setStatus('Account created.');
-      return;
-    }
-    setStatus('Account created. Check your email to confirm it, then sign in.');
-    setAuthMode('sign-in');
-  }
-
-  async function sendPasswordReset() {
-    if (!supabase) {
-      setStatus('Password reset is not available in local dev auth.');
-      return;
-    }
-    setStatus('Sending password reset email...');
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    if (error) {
-      setStatus(error.message);
-      return;
-    }
-    setStatus('Password reset email sent.');
-    setAuthMode('sign-in');
   }
 
   async function signOut() {
-    if (supabase) {
-      await supabase.auth.signOut();
-    } else {
-      setStatus('Signed out.');
-    }
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setStatus('Signed out.');
     setToken('');
     setProfile(null);
     setJobs([]);
@@ -353,8 +279,7 @@ export function App() {
       setFiles([]);
       setParseProgress(0);
       setParseReusedCount(0);
-      setParsedStorageDir('');
-      setStatus(selected.length ? `Selected ${selected.length} PDF(s). Confirm local parsing when ready.` : 'Ready');
+      setStatus(selected.length ? `Selected ${selected.length} PDF(s). Confirm parsing when ready.` : 'Ready');
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
@@ -363,50 +288,19 @@ export function App() {
     }
   }
 
-  async function selectParsedOutputDir() {
-    if (outputDialogInFlightRef.current) return;
-    outputDialogInFlightRef.current = true;
-    setIsSelectingOutput(true);
-    try {
-      const selected = await chooseParsedOutputDir();
-      if (selected) {
-        setParsedOutputDir(selected);
-        setStatus(`Parsed text will be saved under ${selected}`);
-      }
-    } catch (error) {
-      setStatus(errorMessage(error));
-    } finally {
-      outputDialogInFlightRef.current = false;
-      setIsSelectingOutput(false);
-    }
-  }
-
   async function parseSelectedFiles() {
     if (selectedFiles.length === 0 || parseInFlightRef.current) return;
-    if (!parsedOutputDir) {
-      setStatus('Choose a parsed text folder before parsing PDFs.');
-      return;
-    }
     parseInFlightRef.current = true;
     setIsParsing(true);
     setFiles([]);
     setParseProgress(0);
     setParseReusedCount(0);
-    setParsedStorageDir('');
-    setStatus('Parsing PDFs locally...');
-    const parsed: ParsedFile[] = [];
-    let reusedCount = 0;
+    setStatus('Parsing PDFs on the server...');
     try {
-      for (const [index, file] of selectedFiles.entries()) {
-        setStatus(`Parsing ${index + 1}/${selectedFiles.length}: ${file.fileName}`);
-        const result = await parsePdfToMarkdown(file.path, parsedOutputDir);
-        parsed.push(result);
-        if (result.reused) reusedCount += 1;
-        setFiles([...parsed]);
-        setParseReusedCount(reusedCount);
-        setParseProgress(index + 1);
-        if (result.storagePath) setParsedStorageDir(result.storagePath.replace(/[/\\][^/\\]+$/, ''));
-      }
+      const parsed = await parseFiles(token, selectedFiles);
+      setFiles(parsed);
+      setParseProgress(parsed.length);
+      setParseReusedCount(parsed.filter((result) => result.reused).length);
       setStatus(`Parsed ${parsed.length} PDF(s). Review the summary, then start extraction.`);
     } catch (error) {
       setStatus(errorMessage(error));
@@ -486,11 +380,10 @@ export function App() {
     jobActionsInFlightRef.current.add(actionKey);
     setBusyJobId(job.id);
     try {
-      const target = await pickExcelSavePath(`deep-dig-${job.id}.xlsx`);
-      if (!target) return;
       const content = await apiDownload(`/jobs/${job.id}/export.xlsx`, token);
-      await saveBytesToPath(target, new Uint8Array(content));
-      setSavedPath(target);
+      const filename = `deep-dig-${job.id}.xlsx`;
+      downloadBytes(content, filename);
+      setSavedPath(filename);
       setStatus(`Saved ${shortId(job.id)} export.`);
     } catch (error) {
       setStatus(errorMessage(error));
@@ -539,39 +432,18 @@ export function App() {
 
           {!token.trim() && (
             <form className="auth-form" onSubmit={(event) => void submitAuth(event)}>
-              {!isDevAuth && (
-                <div className="auth-tabs" aria-label="Account action">
-                  <button className={authMode === 'sign-in' ? 'selected' : ''} type="button" onClick={() => setAuthMode('sign-in')}>
-                    <LogIn size={16} />
-                    Sign in
-                  </button>
-                  <button className={authMode === 'sign-up' ? 'selected' : ''} type="button" onClick={() => setAuthMode('sign-up')}>
-                    <UserPlus size={16} />
-                    Register
-                  </button>
-                  <button className={authMode === 'reset-password' ? 'selected' : ''} type="button" onClick={() => setAuthMode('reset-password')}>
-                    <KeyRound size={16} />
-                    Reset
-                  </button>
-                </div>
-              )}
-              <label>Email</label>
-              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder={isDevAuth ? 'dev@deepdig.local' : undefined} />
-              {authMode !== 'reset-password' && (
-                <>
-                  <label>Password</label>
-                  <input
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    type="password"
-                    autoComplete={authMode === 'sign-up' ? 'new-password' : 'current-password'}
-                    placeholder={isDevAuth ? 'Any password in dev mode' : undefined}
-                  />
-                </>
-              )}
-              <button type="submit" disabled={isAuthenticating || (supabase ? !email || (authMode !== 'reset-password' && !password) : false)}>
-                {authModeIcon(authMode)}
-                {isAuthenticating ? 'Please wait…' : authButtonLabel(authMode, isDevAuth)}
+              <label>Username</label>
+              <input value={username} onChange={(event) => setUsername(event.target.value)} type="text" autoComplete="username" />
+              <label>Password</label>
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                type="password"
+                autoComplete="current-password"
+              />
+              <button type="submit" disabled={isAuthenticating || !username || !password}>
+                <LogIn size={18} />
+                {isAuthenticating ? 'Please wait…' : 'Sign in'}
               </button>
             </form>
           )}
@@ -591,11 +463,6 @@ export function App() {
             <span>{isSelectingFiles ? 'Opening file picker…' : 'Select PDFs'}</span>
           </button>
 
-          <button className="secondary-button" type="button" disabled={isSelectingOutput} onClick={() => void selectParsedOutputDir()}>
-            <FolderOutput size={18} />
-            {isSelectingOutput ? 'Opening folder picker…' : parsedOutputDir ? 'Change parsed text folder' : 'Choose parsed text folder'}
-          </button>
-
           {(selectedFiles.length > 0 || files.length > 0) && (
             <div className="parse-summary">
               <div className="summary-grid">
@@ -610,15 +477,13 @@ export function App() {
                 </div>
                 <span>{isParsing ? `${parseProgress}/${selectedFiles.length} parsed` : parseStatusLabel(files.length, selectedFiles.length)}</span>
               </div>
-              {parsedOutputDir && <span className="storage-path">Output: {parsedOutputDir}</span>}
-              {parsedStorageDir && <span className="storage-path">Parsed files: {parsedStorageDir}</span>}
             </div>
           )}
 
           <div className="compose-actions">
-            <button className="secondary-button" disabled={selectedFiles.length === 0 || !parsedOutputDir || isParsing} onClick={() => void parseSelectedFiles()} type="button">
+            <button className="secondary-button" disabled={selectedFiles.length === 0 || isParsing} onClick={() => void parseSelectedFiles()} type="button">
               <RefreshCw size={18} />
-              {isParsing ? 'Parsing' : 'Parse locally'}
+              {isParsing ? 'Parsing' : 'Parse'}
             </button>
             <button disabled={!canSubmit} onClick={submitJob} type="button">
               <Play size={18} />
@@ -817,15 +682,14 @@ function statusIcon(status: string) {
   return <Clock3 size={18} />;
 }
 
-function authModeIcon(mode: AuthMode) {
-  if (mode === 'sign-up') return <UserPlus size={18} />;
-  if (mode === 'reset-password') return <KeyRound size={18} />;
-  return <LogIn size={18} />;
-}
-
-function authButtonLabel(mode: AuthMode, devAuth: boolean) {
-  if (devAuth) return 'Sign in with dev auth';
-  if (mode === 'sign-up') return 'Create account';
-  if (mode === 'reset-password') return 'Send reset email';
-  return 'Sign in';
+function downloadBytes(content: ArrayBuffer, filename: string) {
+  const blob = new Blob([content], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

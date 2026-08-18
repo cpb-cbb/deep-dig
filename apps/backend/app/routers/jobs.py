@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.jwt import AuthUser, verify_supabase_jwt
+from app.auth.jwt import AuthUser, verify_auth
 from app.config import settings
 from app.db import get_db
 from app.errors import AppError
@@ -66,7 +66,7 @@ async def _limit_job_actions(request: Request, auth: AuthUser) -> None:
 async def post_job(
     payload: JobCreate,
     request: Request,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
     x_client_version: str | None = Header(default=None),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
@@ -93,7 +93,7 @@ async def post_job(
 @router.get("", response_model=list[JobOut])
 async def get_jobs(
     request: Request,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> list[JobOut]:
     await _limit_job_requests(request, auth, submit=False)
@@ -104,7 +104,7 @@ async def get_jobs(
 async def get_job(
     job_id: UUID,
     request: Request,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> JobOut:
     await _limit_job_requests(request, auth, submit=False)
@@ -115,7 +115,7 @@ async def get_job(
 async def get_job_items(
     job_id: UUID,
     request: Request,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> list[JobItemOut]:
     await _limit_job_requests(request, auth, submit=False)
@@ -139,7 +139,7 @@ async def get_job_items(
 async def export_job_xlsx(
     job_id: UUID,
     request: Request,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     await _limit_job_actions(request, auth)
@@ -159,7 +159,7 @@ async def export_job_xlsx(
 async def post_cancel(
     job_id: UUID,
     request: Request,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> JobOut:
     await _limit_job_actions(request, auth)
@@ -170,7 +170,7 @@ async def post_cancel(
 async def job_events(
     job_id: UUID,
     request: Request,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     await _limit_job_requests(request, auth, submit=False)

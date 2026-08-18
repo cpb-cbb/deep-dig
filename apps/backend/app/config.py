@@ -1,8 +1,9 @@
 from functools import lru_cache
+from pathlib import Path
 from uuid import UUID
 from typing import Literal
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,12 +14,13 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     database_url: str
     redis_url: str = "redis://localhost:6379/0"
-    supabase_url: AnyHttpUrl = "https://example.supabase.co"
-    supabase_jwks_url: AnyHttpUrl = "https://example.supabase.co/auth/v1/.well-known/jwks.json"
-    supabase_service_key: str = Field(default="", repr=False)
-    dev_auth_enabled: bool = False
-    dev_auth_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
-    dev_auth_email: str = "dev@deepdig.local"
+    auth_secret: str = Field(..., repr=False)
+    local_auth_username: str = "admin"
+    local_auth_password: str = Field(..., repr=False)
+    local_auth_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
+    local_auth_email: str = "admin@deepdig.local"
+    parsed_cache_dir: Path = Path("./parsed_cache")
+    upload_max_bytes: int = 50_000_000
     llm_provider: Literal["auto", "openrouter", "anthropic", "openai_compatible", "fake"] = "auto"
     llm_openrouter_key: str = Field(default="", repr=False)
     llm_anthropic_key: str = Field(default="", repr=False)

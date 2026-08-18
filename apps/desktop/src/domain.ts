@@ -33,6 +33,20 @@ export type JobItemOut = {
   finished_at: string | null;
 };
 
+export type ParsedFile = {
+  fileName: string;
+  fileHash: string;
+  text: string;
+  textFormat: 'markdown';
+  textLength: number;
+  reused: boolean;
+};
+
+export type SelectedPdf = {
+  file: File;
+  fileName: string;
+};
+
 export type MeOut = {
   email: string | null;
   display_name: string | null;
@@ -115,7 +129,7 @@ export function parseStatusLabel(parsedCount: number, selectedCount: number) {
   if (selectedCount === 0) return 'No PDFs selected';
   if (parsedCount === selectedCount) return 'Ready to submit';
   if (parsedCount > 0) return `${parsedCount}/${selectedCount} parsed`;
-  return 'Waiting for local parsing';
+  return 'Waiting for parsing';
 }
 
 export function errorMessage(error: unknown) {

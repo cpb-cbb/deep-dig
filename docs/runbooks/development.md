@@ -83,32 +83,22 @@ LLM_COMPAT_MODEL=your-model-name
 `LLM_COMPAT_BASE_URL` may be either the `/v1` base URL or the full
 `/v1/chat/completions` URL.
 
-## Desktop PDF Parsing
+## Web UI and PDF Parsing
 
-The desktop parser is a local `uv` Python project under `apps/desktop`.
-It uses `markitdown` to convert a user-selected PDF into Markdown before the
-text is submitted to the backend.
-
-```bash
-cd apps/desktop
-uv sync
-uv run python -m desktop_parser.parse_pdf /absolute/path/to/input.pdf
-```
-
-The command prints JSON with `fileName`, `fileHash`, `text`, `textFormat`, and
-`textLength`. The `text` field remains compatible with the existing `/jobs`
-payload and contains Markdown.
-
-The Tauri desktop UI uses the same parser through the `parse_pdf_to_markdown`
-native command. During development, run the app from `apps/desktop` so the
-native command can execute `uv run python -m desktop_parser.parse_pdf` in that
-directory:
+The web UI is a React/Vite app under `apps/desktop` (no native shell). Run it in
+development with:
 
 ```bash
 cd apps/desktop
-uv sync
-pnpm tauri dev
+pnpm dev
 ```
+
+The app signs in against the backend's local login (`POST /auth/login`) and
+uploads PDFs to `POST /files/parse`. The backend parses them with `markitdown`
+server-side (cached by content hash under `PARSED_CACHE_DIR`) and returns the
+Markdown text, which the UI then submits as the job payload. A full local stack
+(Redis, API, worker, Vite) can be started from the repository root with
+`pnpm dev:start`.
 
 ## Contracts
 

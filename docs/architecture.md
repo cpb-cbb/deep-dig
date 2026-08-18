@@ -1,12 +1,12 @@
 # Architecture
 
-Deep Dig is a desktop-first materials-science extraction system. It supports one workflow:
+Deep Dig is a materials-science extraction system. It supports one workflow:
 `material_extraction` (Material Science Data Extraction).
 
 ```text
 PDF files
-  -> Tauri desktop client
-  -> local Python PDF-to-Markdown parser
+  -> browser web app (React/Vite)
+  -> backend PDF-to-Markdown parser (markitdown, hash-cached)
   -> authenticated FastAPI job API
   -> PostgreSQL job/item records + Redis queue
   -> ARQ worker -> configured LLM provider
@@ -15,29 +15,26 @@ PDF files
 
 ## Trust boundaries
 
-- The desktop client reads PDFs and parses them locally. Original PDF bytes are never submitted
-  to the API.
-- The API receives parsed Markdown, file metadata, and requested property names.
+- The web app uploads PDFs to the backend, which parses them with `markitdown`. Uploaded PDF
+  bytes are not persisted; only parsed Markdown, file metadata, and requested property names are
+  stored, and raw parsed text only when `user_settings.store_raw_text` is enabled.
 - Provider credentials and prompts remain on the backend.
-- Raw parsed text is persisted only when `user_settings.store_raw_text` is enabled. Queue payloads
-  necessarily contain the text while a task is waiting to run.
-- Authentication uses Supabase JWTs in deployed environments and an explicit development token
-  only when `DEV_AUTH_ENABLED=true`.
+- Queue payloads necessarily contain the parsed text while a task is waiting to run.
+- Authentication is a single local account (`LOCAL_AUTH_USERNAME` / `LOCAL_AUTH_PASSWORD`) that
+  issues signed JWTs from `POST /auth/login`. There is no Supabase and no development bypass.
 
 ## Source layout
 
 | Path | Responsibility |
 | --- | --- |
 | `apps/backend/app/routers` | HTTP boundary, authentication, rate limits, response models |
-| `apps/backend/app/services` | Jobs, extraction, normalization, quota, and export logic |
+| `apps/backend/app/services` | Jobs, extraction, PDF parsing, normalization, quota, and export logic |
 | `apps/backend/app/workers` | Per-document ARQ execution and retry lifecycle |
 | `apps/backend/migrations` | PostgreSQL schema history |
-| `apps/desktop/src` | React UI, API client, domain types, native command wrappers |
-| `apps/desktop/src-tauri` | Native filesystem and parser process bridge |
-| `apps/desktop/desktop_parser` | Local PDF-to-Markdown Python package |
+| `apps/desktop/src` | React web UI, API client, domain types |
 | `packages/workflows/definitions` | Server-owned active workflow prompt definition |
 | `packages/shared-types` | Generated OpenAPI TypeScript contract |
-| `infra/supabase` | Row-level security policies |
+| `infra/supabase` | Row-level security policies (legacy) |
 | `docs` | Architecture, API, development, ADR, and roadmap documents |
 
 ## Job lifecycle

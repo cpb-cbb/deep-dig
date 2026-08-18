@@ -26,7 +26,7 @@ supports one focused workflow: **Material Science Data Extraction** (`material_e
 
 ```text
 apps/backend        FastAPI API, arq worker, SQLAlchemy models, Alembic migrations
-apps/desktop        Tauri 2 + React shell for the desktop client
+apps/desktop        React + Vite web app (replaces the former Tauri client)
 apps/web            Marketing site
 packages/workflows  Server-owned material extraction workflow definition
 packages/shared-types Generated TypeScript API types
@@ -44,37 +44,26 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8001
 ```
 
-For local development before Supabase/LLM credentials are ready, set:
-
-```env
-DEV_AUTH_ENABLED=true
-LLM_PROVIDER=fake
-```
-
-Then use `Authorization: Bearer dev` for protected API calls.
+For local development, copy `apps/backend/.env.example` to `apps/backend/.env` and set
+`AUTH_SECRET` and `LOCAL_AUTH_PASSWORD`. To use a fake LLM instead of a real provider, set
+`LLM_PROVIDER=fake`.
 
 ```bash
 pnpm install
 cd apps/desktop
 cp .env.example .env
-uv sync
-pnpm tauri dev
+pnpm dev
 ```
 
 Or run the complete local stack from the repository root:
 
 ```bash
-pnpm dev:start -- --auth dev --llm fake
+pnpm dev:start -- --llm fake
 ```
 
-Build a self-contained installer for the current desktop platform:
-
-```bash
-pnpm build:desktop:native
-```
-
-The installer bundles the local PDF parser; end users do not need Python or `uv`. See
-[Desktop development](docs/desktop-development.md) for macOS/Windows release and signing details.
+The web app signs in with the `LOCAL_AUTH_USERNAME`/`LOCAL_AUTH_PASSWORD` account and uploads
+PDFs to the backend for server-side parsing. See [Desktop development](docs/desktop-development.md)
+for details.
 
 ## Documentation
 
@@ -89,6 +78,7 @@ The installer bundles the local PDF parser; end users do not need Python or `uv`
 ## MVP boundaries
 
 - No BYO LLM key in the client.
-- No PDF upload. Only parsed text, file name, and file hash are submitted.
+- PDFs are uploaded transiently for server-side parsing and are not persisted; only parsed
+  text, file name, and file hash are stored on jobs.
 - Billing is deferred; plan/quota fields are present for compatibility.
 - Raw text is not persisted unless `user_settings.store_raw_text` is true.
