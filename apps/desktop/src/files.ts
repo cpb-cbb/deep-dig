@@ -22,7 +22,6 @@ export function selectPdfFiles(): Promise<SelectedPdf[]> {
       );
     };
     input.addEventListener('cancel', () => finish([]));
-    window.addEventListener('focus', () => finish([]), { once: true });
     input.click();
   });
 }

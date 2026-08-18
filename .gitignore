@@ -21,3 +21,8 @@ apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/binaries/
 literature/
 .vscode/
+apps/backend/parsed_cache/
+.pnpm-store/
+.agent/
+.agents/
+.claude/
