@@ -246,5 +246,4 @@ the repository public.
 
 ## License
 
-No license file is currently included. Add a `LICENSE` file before publishing if you want to
-define how others may use, modify, and redistribute this project.
+Deep Dig is released under the [MIT License](LICENSE).
