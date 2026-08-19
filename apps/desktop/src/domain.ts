@@ -94,6 +94,8 @@ export type SelectedPdf = {
 };
 
 export type MeOut = {
+  id: string;
+  username: string | null;
   email: string | null;
   display_name: string | null;
 };

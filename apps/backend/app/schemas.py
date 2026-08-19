@@ -14,8 +14,18 @@ class ErrorResponse(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=200)
-    password: str = Field(min_length=1)
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: str = Field(min_length=8, max_length=1024)
+    email: str | None = Field(
+        default=None,
+        max_length=320,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
 
 
 class LoginResponse(BaseModel):
@@ -41,6 +51,7 @@ class SettingsOut(BaseModel):
 
 class MeOut(BaseModel):
     id: UUID
+    username: str | None
     email: str | None
     display_name: str | None
     settings: SettingsOut

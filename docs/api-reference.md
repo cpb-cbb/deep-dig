@@ -6,7 +6,8 @@ ReDoc at `/redoc`, and the machine-readable schema at `/openapi.json`.
 ## Authentication and headers
 
 All `/me`, `/files`, and `/jobs` endpoints require a bearer token returned by
-`POST /auth/login`. Desktop requests also send `X-Client-Version`.
+`POST /auth/register` or `POST /auth/login`. User-owned resources are filtered by the token's
+database user ID. Desktop requests also send `X-Client-Version`.
 
 `POST /jobs` should send a stable `Idempotency-Key` of 16–128 characters and reuse it when
 retrying the same logical submission. Every response includes `X-App-Version`.
@@ -19,6 +20,8 @@ retrying the same logical submission. Every response includes `X-App-Version`.
 | `GET`   | `/version`                       | No   | Application version and environment         |
 | `GET`   | `/workflows`                     | No   | List public workflow schemas and UI metadata |
 | `GET`   | `/workflows/{workflow_id}`       | No   | Get one public workflow definition           |
+| `POST`  | `/auth/register`                | No   | Create an isolated database account          |
+| `POST`  | `/auth/login`                   | No   | Sign in with a database username and password |
 | `GET`   | `/me`                            | Yes  | Account and settings                        |
 | `PATCH` | `/me`                            | Yes  | Update display name or user settings        |
 | `GET`   | `/me/llm-settings`               | Yes  | Read effective provider settings            |

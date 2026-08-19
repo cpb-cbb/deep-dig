@@ -16,9 +16,9 @@ pnpm dev
 
 Set `VITE_API_BASE_URL` when the backend is not running at `http://127.0.0.1:8001`.
 
-Authentication is a single local account configured on the backend: `LOCAL_AUTH_USERNAME` /
-`LOCAL_AUTH_PASSWORD` (see `apps/backend/.env.example`). There is no Supabase and no dev bypass;
-every request requires a token from `POST /auth/login`.
+Authentication uses database-backed accounts. The UI can register through `POST /auth/register`
+and sign in through `POST /auth/login`; every protected request requires the returned token.
+Jobs, recent schemas, user settings, and encrypted provider credentials are isolated by user ID.
 
 ## Build checks
 
@@ -63,5 +63,6 @@ server-only. Job cards and reports resolve names and result counts by workflow/r
 1. Update matching versions in root/package metadata and backend settings.
 2. Regenerate the OpenAPI contract if request or response models changed.
 3. Run backend tests, Ruff checks, and `pnpm build`.
-4. Test login, PDF selection, cache reuse, cancellation, polling, and Excel export against a
+4. Test registration, login, account isolation, PDF selection, cache reuse, cancellation, polling,
+   and Excel export against a
    release-like backend.

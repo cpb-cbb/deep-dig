@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Settings2,
   Trash2,
+  UserPlus,
   X,
   XCircle,
 } from 'lucide-react';
@@ -51,7 +52,6 @@ import {
 import { parseFiles, selectPdfFiles } from './files';
 
 const TOKEN_STORAGE_KEY = 'deep-dig-token';
-const CUSTOM_SCHEMA_STORAGE_KEY = 'deep-dig-custom-schema-v1';
 const CUSTOM_RECORD_WORKFLOW_ID = 'custom_record_extraction';
 const ACTIVE_JOB_REFRESH_MS = 6_000;
 const ACCOUNT_REFRESH_MS = 30_000;
@@ -78,11 +78,14 @@ export function App() {
   const [token, setToken] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [registrationEmail, setRegistrationEmail] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [profile, setProfile] = useState<MeOut | null>(null);
   const [workflows, setWorkflows] = useState<WorkflowOut[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(MATERIAL_EXTRACTION_WORKFLOW_ID);
   const [tagValues, setTagValues] = useState<Record<string, string>>(DEFAULT_TAG_VALUES);
-  const [customFields, setCustomFields] = useState<CustomField[]>(loadSavedCustomFields);
+  const [customFields, setCustomFields] = useState<CustomField[]>(DEFAULT_CUSTOM_FIELDS);
   const [selectedFiles, setSelectedFiles] = useState<SelectedPdf[]>([]);
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [jobs, setJobs] = useState<JobOut[]>([]);
@@ -165,14 +168,6 @@ export function App() {
     if (saved) setToken(saved);
     void loadWorkflows();
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CUSTOM_SCHEMA_STORAGE_KEY, JSON.stringify(customFields));
-    } catch {
-      // Private browsing or a locked-down WebView can disable local storage.
-    }
-  }, [customFields]);
 
   useEffect(() => {
     setJobPage((current) => Math.min(current, jobPageCount - 1));
@@ -319,23 +314,31 @@ export function App() {
     authInFlightRef.current = true;
     setIsAuthenticating(true);
     try {
-      await signIn();
+      await authenticate();
     } finally {
       authInFlightRef.current = false;
       setIsAuthenticating(false);
     }
   }
 
-  async function signIn() {
-    setStatus('Signing in...');
+  async function authenticate() {
+    if (authMode === 'register' && password !== confirmPassword) {
+      setStatus('Passwords do not match.');
+      return;
+    }
+    setStatus(authMode === 'register' ? 'Creating account...' : 'Signing in...');
     try {
-      const { access_token } = await apiFetch<{ access_token: string }>('/auth/login', '', {
+      const { access_token } = await apiFetch<{ access_token: string }>(`/auth/${authMode === 'register' ? 'register' : 'login'}`, '', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(authMode === 'register'
+          ? { username, password, email: registrationEmail.trim() || null }
+          : { username, password }),
       });
       setToken(access_token);
       localStorage.setItem(TOKEN_STORAGE_KEY, access_token);
-      setStatus('Signed in.');
+      setPassword('');
+      setConfirmPassword('');
+      setStatus(authMode === 'register' ? 'Account created and signed in.' : 'Signed in.');
     } catch (error) {
       setStatus(errorMessage(error));
     }
@@ -575,7 +578,7 @@ export function App() {
         <div className="topbar-actions">
           {profile && (
             <div className="account-pill">
-              <span>{profile.email ?? profile.display_name ?? 'Signed in'}</span>
+              <span>{profile.username ?? profile.email ?? profile.display_name ?? 'Signed in'}</span>
             </div>
           )}
           {token.trim() && (
@@ -604,18 +607,83 @@ export function App() {
 
           {!token.trim() && (
             <form className="auth-form" onSubmit={(event) => void submitAuth(event)}>
+              <div className="auth-tabs" role="tablist" aria-label="Account access">
+                <button
+                  aria-selected={authMode === 'login'}
+                  className={authMode === 'login' ? 'selected' : ''}
+                  onClick={() => setAuthMode('login')}
+                  role="tab"
+                  type="button"
+                >
+                  Sign in
+                </button>
+                <button
+                  aria-selected={authMode === 'register'}
+                  className={authMode === 'register' ? 'selected' : ''}
+                  onClick={() => setAuthMode('register')}
+                  role="tab"
+                  type="button"
+                >
+                  Create account
+                </button>
+              </div>
+              <p className="auth-copy">
+                {authMode === 'register'
+                  ? 'Each account gets private tasks, schemas, and model settings.'
+                  : 'Sign in to your private extraction workspace.'}
+              </p>
               <label>Username</label>
-              <input value={username} onChange={(event) => setUsername(event.target.value)} type="text" autoComplete="username" />
+              <input
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                type="text"
+                autoComplete="username"
+                minLength={authMode === 'register' ? 3 : 1}
+                maxLength={64}
+                pattern={authMode === 'register' ? '[A-Za-z0-9_.-]+' : undefined}
+                required
+              />
+              {authMode === 'register' && (
+                <>
+                  <label>Email <span className="optional-label">optional</span></label>
+                  <input
+                    value={registrationEmail}
+                    onChange={(event) => setRegistrationEmail(event.target.value)}
+                    type="email"
+                    autoComplete="email"
+                  />
+                </>
+              )}
               <label>Password</label>
               <input
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 type="password"
-                autoComplete="current-password"
+                autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                minLength={authMode === 'register' ? 8 : 1}
+                maxLength={1024}
+                required
               />
-              <button type="submit" disabled={isAuthenticating || !username || !password}>
-                <LogIn size={18} />
-                {isAuthenticating ? 'Please wait…' : 'Sign in'}
+              {authMode === 'register' && (
+                <>
+                  <label>Confirm password</label>
+                  <input
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    maxLength={1024}
+                    required
+                  />
+                </>
+              )}
+              <button
+                type="submit"
+                disabled={isAuthenticating || !username || !password || (authMode === 'register' && !confirmPassword)}
+              >
+                {authMode === 'register' ? <UserPlus size={18} /> : <LogIn size={18} />}
+                {isAuthenticating ? 'Please wait…' : authMode === 'register' ? 'Create account' : 'Sign in'}
               </button>
             </form>
           )}
@@ -1016,7 +1084,7 @@ function WorkflowConfigFields({
           {control.control === 'field_builder' ? (
             <div className="field-builder">
               <p className="schema-persistence-note">
-                Auto-saved in this browser. Every submitted task also keeps its own versioned schema snapshot.
+                Every submitted task keeps a private, versioned schema snapshot for this account.
               </p>
               <div className="recent-schema-picker">
                 <div>
@@ -1109,16 +1177,6 @@ function WorkflowConfigFields({
       ))}
     </div>
   );
-}
-
-function loadSavedCustomFields(): CustomField[] {
-  try {
-    const saved = localStorage.getItem(CUSTOM_SCHEMA_STORAGE_KEY);
-    if (!saved) return DEFAULT_CUSTOM_FIELDS;
-    return parseCustomFields(JSON.parse(saved)) ?? DEFAULT_CUSTOM_FIELDS;
-  } catch {
-    return DEFAULT_CUSTOM_FIELDS;
-  }
 }
 
 function recentCustomSchemas(jobs: JobOut[]): RecentSchema[] {

@@ -12,7 +12,7 @@ from arq.connections import RedisSettings
 from arq.worker import func
 from sqlalchemy import select
 
-from app.config import settings
+from app.config import resolve_worker_max_jobs, settings
 from app.db import SessionLocal
 from app.errors import AppError
 from app.models import Job, JobItem, UserSettings
@@ -347,7 +347,7 @@ class WorkerSettings:
             keep_result=0,
         )
     ]
-    max_jobs = settings.worker_max_jobs
+    max_jobs = resolve_worker_max_jobs(settings.worker_max_jobs)
     job_timeout = _outer_timeout
     max_tries = settings.item_max_tries
     keep_result = 0

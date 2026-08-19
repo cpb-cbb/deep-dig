@@ -241,7 +241,7 @@ textarea {
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
 }
 
@@ -260,6 +260,21 @@ textarea {
 .auth-tabs button.selected {
   background: var(--accent);
   color: var(--ink);
+}
+
+.auth-copy {
+  margin: 1px 0 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.optional-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
 .token-input {

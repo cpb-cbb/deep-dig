@@ -16,7 +16,7 @@ or replicas to increase capacity; Redis distributes item jobs across them.
 Worker concurrency and retry behavior can be tuned with:
 
 ```env
-WORKER_MAX_JOBS=8
+WORKER_MAX_JOBS=auto
 ITEM_JOB_TIMEOUT_SECONDS=600
 ITEM_MAX_TRIES=3
 ITEM_RETRY_BASE_SECONDS=2
@@ -24,7 +24,8 @@ ITEM_QUEUE_EXPIRY_SECONDS=604800
 ```
 
 Effective extraction concurrency is approximately the number of worker replicas
-multiplied by `WORKER_MAX_JOBS`. Keep it within the LLM provider's rate limits.
+multiplied by the resolved `WORKER_MAX_JOBS`. Auto mode uses 1–8 slots based on available CPU;
+keep total concurrency within the LLM provider's rate limits.
 
 ### Capacity and self-hosting
 
@@ -35,7 +36,7 @@ concurrency and these technical safety settings:
 ```env
 UPLOAD_MAX_BYTES=50000000
 MAX_TEXT_CHARS=200000
-WORKER_MAX_JOBS=8
+WORKER_MAX_JOBS=auto
 ```
 
 If an instance is exposed to untrusted public traffic, configure any desired
@@ -91,7 +92,8 @@ cd apps/desktop
 pnpm dev
 ```
 
-The app signs in against the backend's local login (`POST /auth/login`) and
+The app creates database accounts through `POST /auth/register`, signs in through
+`POST /auth/login`, and
 uploads PDFs to `POST /files/parse`. The backend parses them with `markitdown`
 server-side and returns the Markdown text, which the UI then submits as the job
 payload. Persistent parsing cache is disabled by default; opt in with

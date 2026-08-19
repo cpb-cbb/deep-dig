@@ -13,6 +13,7 @@ workbooks.
 - Define typed custom fields or domain entity and relationship vocabularies from the UI.
 - Keep workflow versions, schema hashes, and immutable job snapshots for reproducible resumes.
 - Queue one extraction item per document with PostgreSQL, Redis, and ARQ workers.
+- Create multiple accounts with isolated jobs, schemas, model settings, and encrypted API keys.
 - Support Anthropic, OpenRouter, and OpenAI-compatible providers, plus a zero-cost fake provider
   for local development.
 - Configure provider, Base URL, model, API key, and temperature from the authenticated settings
@@ -69,40 +70,42 @@ pnpm install
 cd apps/backend
 uv sync
 cp .env.example .env
-uv run alembic upgrade head
-cd ../..
-
-cp apps/desktop/.env.example apps/desktop/.env
 ```
-
-Before running migrations, make sure PostgreSQL is running and the database configured by
-`DATABASE_URL` exists.
 
 ### 2. Configure the backend
 
-Edit `apps/backend/.env` and set at least:
+Create the PostgreSQL database, then edit `apps/backend/.env`:
 
 ```env
-ENV=development
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/deep_dig
+REDIS_URL=redis://localhost:6379/0
 AUTH_SECRET=replace-with-a-long-random-secret
-LOCAL_AUTH_USERNAME=admin
-LOCAL_AUTH_PASSWORD=replace-with-a-strong-password
+
+LLM_COMPAT_BASE_URL=https://api.openai.com/v1
+LLM_COMPAT_API_KEY=replace-with-your-api-key
+LLM_COMPAT_MODEL=gpt-4o-mini
 ```
 
-For a local smoke test without an external LLM, use:
+`AUTH_SECRET` signs login tokens and encrypts per-user API keys. Generate a stable random value and
+do not change it after users save provider settings. OpenAI-compatible services such as DeepSeek
+or a local gateway can be used by replacing the URL and model.
 
-```env
-LLM_PROVIDER=fake
+Apply the database migrations and create the frontend environment file:
+
+```bash
+uv run alembic upgrade head
+cd ../..
+cp apps/desktop/.env.example apps/desktop/.env
 ```
 
-Do not use sample secrets or passwords in a public deployment.
+Do not use sample secrets in a public deployment.
 
 ### 3. Start the complete local stack
 
 From the repository root:
 
 ```bash
-pnpm dev:start -- --llm fake
+pnpm dev:start
 ```
 
 This starts Redis, the FastAPI API, the ARQ worker, and the main Web UI. It does not start
@@ -121,22 +124,24 @@ Local service endpoints:
 - API docs: `http://127.0.0.1:8001/docs`
 - Redis: `127.0.0.1:6379`
 
-Sign in with the `LOCAL_AUTH_USERNAME` and `LOCAL_AUTH_PASSWORD` values from your local
-backend `.env` file.
+Choose **Create account** on the main page. Each account has its own jobs, recent schemas, user
+settings, and encrypted LLM credentials. To close public registration after creating the desired
+accounts, add `REGISTRATION_ENABLED=false` to `apps/backend/.env` and restart the API.
+
+When upgrading an older single-user installation, keep its existing `LOCAL_AUTH_PASSWORD` for the
+first `admin` login. That successful login migrates the legacy user and existing jobs to a hashed
+database account; the environment password can then be removed.
 
 ## Development commands
 
 ```bash
-# Complete local stack
-pnpm dev:start -- --llm fake
-
-# Use the provider configured in apps/backend/.env
+# Complete local stack using apps/backend/.env
 pnpm dev:start
 
 # Service management
 pnpm dev:status
 pnpm dev:stop
-pnpm dev:restart -- --llm fake
+pnpm dev:restart
 pnpm dev:logs api
 pnpm dev:logs worker
 
@@ -175,8 +180,8 @@ pnpm dev
 | `anthropic` | Uses the Anthropic API |
 | `openai_compatible` | Uses an OpenAI-compatible `/chat/completions` endpoint |
 
-`--llm fake` only overrides the provider for the API and worker processes started by the helper
-script. It does not modify `.env`.
+The optional fake provider remains available for automated tests and offline development, but the
+normal startup path uses the real OpenAI-compatible provider configured in `.env`.
 
 The main UI also has a **Settings** panel. Environment mode reads the variables above. Custom
 mode stores an instance-local override; API keys are encrypted on the backend using a key derived

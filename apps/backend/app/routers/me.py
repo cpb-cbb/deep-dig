@@ -18,6 +18,7 @@ async def get_me(
     await db.commit()
     return MeOut(
         id=user.id,
+        username=user.username,
         email=user.email or auth.email,
         display_name=user.display_name,
         settings=SettingsOut.model_validate(user.settings, from_attributes=True),
@@ -45,6 +46,7 @@ async def patch_me(
     await db.commit()
     return MeOut(
         id=user.id,
+        username=user.username,
         email=user.email or auth.email,
         display_name=user.display_name,
         settings=SettingsOut.model_validate(user.settings, from_attributes=True),

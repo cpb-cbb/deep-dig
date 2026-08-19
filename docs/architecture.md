@@ -25,8 +25,9 @@ PDF files
   enabled.
 - Custom provider API keys are encrypted in PostgreSQL with a key derived from `AUTH_SECRET` and
   are never returned through the API. Environment variables remain the default configuration.
-- Authentication is a single local account (`LOCAL_AUTH_USERNAME` / `LOCAL_AUTH_PASSWORD`) that
-  issues signed JWTs from `POST /auth/login`. There is no Supabase and no development bypass.
+- Authentication uses unique database usernames and salted PBKDF2 password hashes. Registration
+  and login issue signed JWTs; jobs, schemas, settings, and encrypted provider keys remain scoped
+  to the authenticated user ID. There is no Supabase or development authentication bypass.
 
 ## Source layout
 
