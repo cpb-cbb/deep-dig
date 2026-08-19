@@ -234,5 +234,4 @@ pnpm generate:api
 
 ## 许可证
 
-当前仓库尚未包含许可证文件。如果希望明确他人如何使用、修改和再分发本项目，请在公开发布前
-添加 `LICENSE` 文件。
+Deep Dig 基于 [MIT License](LICENSE) 开源。
