@@ -32,12 +32,10 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
     if claimed is None:
         return
 
-    workflow_id, config, llm_config, claim_token = claimed
+    workflow, config, llm_config, claim_token = claimed
     started_at = time.monotonic()
     try:
-        result = await _run_with_retries(
-            ctx["redis"], job_uuid, workflow_id, config, text, llm_config
-        )
+        result = await _run_with_retries(ctx["redis"], job_uuid, workflow, config, text, llm_config)
     except asyncio.CancelledError:
         # A graceful worker shutdown releases the claim so ARQ can redeliver it.
         await _release_item_claim(job_uuid, item_uuid, claim_token)
@@ -61,7 +59,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
     parsed_result = result.get("parsed_result")
     if not isinstance(parsed_result, dict) or not parsed_result.get("success", False):
         error_message = (
-            str(parsed_result.get("error") or "No samples parsed")
+            str(parsed_result.get("error") or "No structured results parsed")
             if isinstance(parsed_result, dict)
             else "Invalid parsed result"
         )
@@ -93,7 +91,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
 
 async def _claim_item(
     job_id: UUID, item_id: UUID
-) -> tuple[str, dict[str, Any], ResolvedLLMConfig, str] | None:
+) -> tuple[dict[str, Any], dict[str, Any], ResolvedLLMConfig, str] | None:
     async with SessionLocal() as db:
         job = await db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if job is None:
@@ -127,9 +125,14 @@ async def _claim_item(
         item.error_code = None
         item.error_message = None
         llm_config = await get_user_llm_config(db, job.user_id)
-        await db.commit()
         config = job.config if isinstance(job.config, dict) else {}
-        return job.workflow_id, config, llm_config, claim_token
+        workflow = (
+            job.workflow_snapshot
+            if isinstance(job.workflow_snapshot, dict)
+            else get_workflow(job.workflow_id)
+        )
+        await db.commit()
+        return workflow, config, llm_config, claim_token
 
 
 async def _release_item_claim(job_id: UUID, item_id: UUID, claim_token: str) -> None:
@@ -178,12 +181,11 @@ async def _cancel_claimed_item(job_id: UUID, item_id: UUID, claim_token: str) ->
 async def _run_with_retries(
     redis: Any,
     job_id: UUID,
-    workflow_id: str,
+    workflow: dict[str, Any],
     config: dict[str, Any],
     text: str,
     llm_config: ResolvedLLMConfig,
 ) -> dict[str, Any]:
-    workflow = get_workflow(workflow_id)
     for attempt in range(1, settings.item_max_tries + 1):
         if await _is_job_cancelled(redis, job_id):
             raise JobCancelledError("Task was cancelled")

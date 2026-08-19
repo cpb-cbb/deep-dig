@@ -44,7 +44,7 @@ default cache setting, parsed text is not persisted by the parser either.
 ## Frontend structure
 
 - `src/App.tsx`: application orchestration and UI composition
-- `src/domain.ts`: workflow constants, API view types, and pure presentation helpers
+- `src/domain.ts`: workflow metadata, API view types, and pure presentation helpers
 - `src/api.ts`: authenticated fetch/upload/download boundary and normalized connection errors
 - `src/files.ts`: browser file picker and upload-to-parse helper
 - `src/styles.css`: application styles
@@ -53,8 +53,10 @@ The header **Settings** panel switches between backend environment variables and
 database override for provider, Base URL, model, API key, and temperature. Active tasks expose a
 **Continue** action that requeues unfinished documents after an interruption.
 
-The extraction mode is intentionally not user-selectable. The app always submits
-`material_extraction`; requested property names are the user-controlled extraction configuration.
+The app loads public workflow metadata from `GET /workflows`. `ui_schema.controls` drives the
+configuration surface: tag-list controls collect material properties or entity vocabularies, and
+the field builder creates typed custom-record schemas. Prompts and provider credentials remain
+server-only. Job cards and reports resolve names and result counts by workflow/result type.
 
 ## Release checklist
 

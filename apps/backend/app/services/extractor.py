@@ -7,7 +7,7 @@ import json_repair
 
 from app.services.llm_gateway import llm_gateway
 from app.services.llm_config import ResolvedLLMConfig
-from app.services.processor import parse_material_extraction
+from app.services.processor import parse_workflow_result
 
 
 def _render(template: str, values: dict[str, Any]) -> str:
@@ -60,5 +60,5 @@ async def run_workflow(
             _parse_json_output(result.text) if step.get("output_format") == "json" else result.text
         )
 
-    parsed = parse_material_extraction(raw_results)
+    parsed = parse_workflow_result(workflow, raw_results, params)
     return {"raw_results": raw_results, "parsed_result": parsed.model_dump(mode="json")}

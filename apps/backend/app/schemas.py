@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -79,6 +79,12 @@ class WorkflowOut(BaseModel):
     name: str
     description: str
     version: str
+    domain: str
+    task_type: str
+    result_type: str
+    config_schema: dict[str, Any]
+    output_schema: dict[str, Any]
+    ui_schema: dict[str, Any]
     ui_config: dict[str, Any]
 
 
@@ -92,24 +98,11 @@ class JobCreateItem(BaseModel):
     text: str = Field(min_length=1, description="Parsed Markdown text; the PDF is not stored")
 
 
-PropertyName = Annotated[str, Field(min_length=1, max_length=200)]
-
-
-class MaterialExtractionConfig(BaseModel):
+class JobCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    properties: list[PropertyName] = Field(
-        min_length=1,
-        max_length=100,
-        description="Exact material property names to extract",
-    )
-
-
-class JobCreate(BaseModel):
-    workflow_id: Literal["material_extraction"] = Field(
-        description="The only supported extraction workflow"
-    )
-    config: MaterialExtractionConfig
+    workflow_id: str = Field(min_length=1, max_length=120)
+    config: dict[str, Any] = Field(default_factory=dict)
     items: list[JobCreateItem] = Field(min_length=1, description="Documents in this batch")
 
 
@@ -129,6 +122,8 @@ class JobResumeOut(BaseModel):
 class JobOut(BaseModel):
     id: UUID
     workflow_id: str
+    workflow_version: str
+    config: dict[str, Any]
     status: str
     total_items: int
     completed_items: int
@@ -177,6 +172,19 @@ class ParsedResult(BaseModel):
     success: bool
     samples: list[Sample] = Field(default_factory=list)
     headers: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class ExtractionResultEnvelope(BaseModel):
+    success: bool
+    schema_version: str = "1.0"
+    workflow_id: str
+    workflow_version: str
+    result_type: str
+    data: dict[str, Any] = Field(default_factory=dict)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    validation: dict[str, Any] = Field(default_factory=lambda: {"valid": True, "errors": []})
     error: str | None = None
 
 

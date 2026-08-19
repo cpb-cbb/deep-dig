@@ -270,6 +270,239 @@ textarea {
   min-height: 128px;
 }
 
+.workflow-section,
+.workflow-config {
+  display: grid;
+  gap: 12px;
+}
+
+.workflow-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.workflow-heading h3 {
+  margin: 5px 0 0;
+  font-size: 17px;
+  letter-spacing: -.025em;
+}
+
+.workflow-version {
+  border: 1px solid var(--line-dark);
+  background: #fff;
+  padding: 3px 7px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.workflow-picker {
+  display: grid;
+  gap: 7px;
+}
+
+.workflow-option {
+  position: relative;
+  display: grid;
+  min-height: 82px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  overflow: hidden;
+  border-color: var(--line-dark);
+  background: #fff;
+  color: var(--ink);
+  padding: 11px 12px;
+  text-align: left;
+  white-space: normal;
+}
+
+.workflow-option::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: transparent;
+  content: "";
+}
+
+.workflow-option:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: #f7f9f1;
+}
+
+.workflow-option.selected {
+  border-color: var(--ink);
+  background: rgba(182, 255, 43, .11);
+  box-shadow: 3px 3px 0 rgba(11, 20, 16, .08);
+}
+
+.workflow-option.selected::before {
+  background: var(--accent);
+}
+
+.workflow-option.amber.selected::before {
+  background: #ffbd4a;
+}
+
+.workflow-option.green.selected::before {
+  background: #4dc792;
+}
+
+.workflow-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.workflow-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.workflow-copy strong {
+  font-size: 14px;
+}
+
+.workflow-copy small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.workflow-badge {
+  align-self: start;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 3px 6px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.workflow-config {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.field-help {
+  margin: -2px 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.field-builder {
+  display: grid;
+  gap: 8px;
+}
+
+.schema-persistence-note {
+  margin: 0 0 3px;
+  border-left: 4px solid var(--accent);
+  background: rgba(182, 255, 43, .09);
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.recent-schema-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, .9fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--ink);
+  background: #fff;
+  padding: 10px;
+}
+
+.recent-schema-picker > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.recent-schema-picker strong {
+  font-size: 12px;
+}
+
+.recent-schema-picker span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.recent-schema-picker select {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+.field-builder-head,
+.field-definition {
+  display: grid;
+  grid-template-columns: 92px minmax(140px, 1fr) 92px 38px;
+  gap: 7px;
+  align-items: start;
+}
+
+.field-builder-head {
+  padding-inline: 2px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.field-definition {
+  border: 1px solid var(--line);
+  background: #f1f3eb;
+  padding: 7px;
+}
+
+.field-definition > div {
+  display: grid;
+  gap: 6px;
+}
+
+.field-definition input,
+.field-definition select {
+  min-height: 38px;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.field-definition > div input:last-child {
+  color: #465048;
+  font-size: 11px;
+}
+
+.remove-field {
+  width: 38px;
+  min-height: 38px;
+  border-color: var(--line-dark);
+  background: #fff;
+  color: var(--danger);
+  padding: 0;
+}
+
+.add-field {
+  width: fit-content;
+  min-height: 36px;
+  padding-block: 7px;
+  font-size: 12px;
+}
+
 .drop {
   min-height: 98px;
   border: 1px dashed var(--ink);
@@ -359,6 +592,41 @@ textarea {
 
 .queue-panel {
   min-height: 430px;
+}
+
+.queue-panel.collapsed {
+  min-height: 0;
+}
+
+.queue-title-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.queue-pagination {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.queue-pagination button {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.queue-pagination > span {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  text-align: center;
+}
+
+.queue-pagination strong {
+  color: var(--ink);
 }
 
 .job-row {
@@ -927,6 +1195,28 @@ textarea {
 
   .job-actions {
     justify-content: flex-start;
+  }
+
+  .recent-schema-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .field-builder-head {
+    display: none;
+  }
+
+  .field-definition {
+    grid-template-columns: 1fr 38px;
+  }
+
+  .field-definition > div,
+  .field-definition > select {
+    grid-column: 1;
+  }
+
+  .field-definition .remove-field {
+    grid-row: 1;
+    grid-column: 2;
   }
 }
 

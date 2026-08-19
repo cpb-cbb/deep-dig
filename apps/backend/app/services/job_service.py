@@ -14,7 +14,12 @@ from app.config import settings
 from app.errors import AppError
 from app.models import Job, JobItem, User, UserSettings
 from app.schemas import JobCreate
-from app.services.workflow_registry import get_workflow
+from app.services.workflow_registry import (
+    get_workflow,
+    validate_workflow_config,
+    workflow_schema_hash,
+    workflow_snapshot,
+)
 
 
 def _redis_settings() -> RedisSettings:
@@ -40,7 +45,6 @@ async def create_job(
     client_version: str | None,
     idempotency_key: str | None = None,
 ) -> tuple[Job, int, bool]:
-    get_workflow(payload.workflow_id)
     for item in payload.items:
         if len(item.text) > settings.max_text_chars:
             raise AppError(413, "PAYLOAD_TOO_LARGE", "PDF text exceeds maximum length")
@@ -61,12 +65,18 @@ async def create_job(
         if existing_job is not None:
             return existing_job, 0, True
 
+    workflow = get_workflow(payload.workflow_id)
+    normalized_config = validate_workflow_config(workflow, payload.config)
+
     job = Job(
         user_id=locked_user.id,
         workflow_id=payload.workflow_id,
+        workflow_version=workflow["version"],
+        workflow_schema_hash=workflow_schema_hash(workflow),
+        workflow_snapshot=workflow_snapshot(workflow),
         status="pending",
         total_items=len(payload.items),
-        config=payload.config.model_dump(),
+        config=normalized_config,
         client_version=client_version,
         idempotency_key=idempotency_key,
     )

@@ -1,7 +1,7 @@
 # Architecture
 
-Deep Dig is a materials-science extraction system. It supports one workflow:
-`material_extraction` (Material Science Data Extraction).
+Deep Dig is a schema-driven document extraction system. Its shared execution engine runs
+versioned workflows for material-property tables, user-defined records, and entity relationships.
 
 ```text
 PDF files
@@ -9,8 +9,8 @@ PDF files
   -> backend PDF-to-Markdown parser (markitdown, optional content cache)
   -> authenticated FastAPI job API
   -> PostgreSQL job/item records + Redis queue
-  -> ARQ worker -> configured LLM provider
-  -> normalized result -> Excel export
+  -> ARQ worker -> immutable workflow snapshot -> configured LLM provider
+  -> normalized result envelope -> result-aware Excel export
 ```
 
 ## Trust boundaries
@@ -37,29 +37,46 @@ PDF files
 | `apps/backend/app/workers` | Per-document ARQ execution and retry lifecycle |
 | `apps/backend/migrations` | PostgreSQL schema history |
 | `apps/desktop/src` | React web UI, API client, domain types |
-| `packages/workflows/definitions` | Server-owned active workflow prompt definition |
+| `packages/workflows/definitions` | Server-owned workflow schemas, UI metadata, and prompts |
 | `packages/shared-types` | Generated OpenAPI TypeScript contract |
 | `infra/supabase` | Row-level security policies (legacy) |
 | `docs` | Architecture, API, development, ADR, and roadmap documents |
 
 ## Job lifecycle
 
-1. `POST /jobs` validates the material extraction request and creates a job.
-2. One `JobItem` and one ARQ task are created per document.
-3. Workers claim items transactionally. A batch can therefore use all available worker slots.
-4. Workers fence each claim with a unique token, preventing a superseded worker from overwriting
+1. `POST /jobs` resolves the selected workflow and validates its dynamic configuration.
+2. The job stores the workflow version, SHA-256 schema hash, and an immutable definition snapshot.
+3. One `JobItem` and one ARQ task are created per document.
+4. Workers claim items transactionally and execute the stored snapshot. A batch can therefore use
+   all available worker slots without changing behavior after a workflow deployment.
+5. Workers fence each claim with a unique token, preventing a superseded worker from overwriting
    a manually resumed item.
-5. Transient LLM failures use bounded exponential retries; permanent failures affect only the
+6. Transient LLM failures use bounded exponential retries; permanent failures affect only the
    current document.
-6. `POST /jobs/{job_id}/resume` requeues unfinished items from their temporarily retained text.
-7. The parent job completes when every item is terminal. Clients poll the job endpoints or use
+7. `POST /jobs/{job_id}/resume` requeues unfinished items from their temporarily retained text.
+8. The parent job completes when every item is terminal. Clients poll the job endpoints or use
    the optional server-sent events endpoint.
-8. A terminal job can be exported as an `.xlsx` workbook.
+9. A terminal job can be exported as a result-aware `.xlsx` workbook.
+
+## Workflow and result contracts
+
+Workflow metadata separates `domain` from `task_type`: materials science is a domain, while
+record extraction and entity-relationship extraction are reusable tasks. Public workflow APIs
+expose configuration, output, and UI schemas but never execution prompts.
+
+New item results use a shared envelope containing `schema_version`, workflow identity,
+`result_type`, typed `data`, warnings, validation state, and an error field. Payloads remain
+result-specific so specialist material measurements are not forced into an overly generic graph.
+Exporters and frontend metrics dispatch on `result_type`. Legacy material results without the
+envelope remain readable and exportable.
 
 ## Extension rules
 
-- Treat `material_extraction` as a durable database/API identifier; change its prompt version
-  rather than renaming historical jobs.
-- Update the workflow JSON and normalization tests together when the provider output shape changes.
+- Treat every workflow ID as a durable database/API identifier; increase its version when prompts,
+  schemas, or result semantics change.
+- Update workflow JSON, processor validation, export behavior, and tests together when an output
+  shape changes.
+- Add a new workflow definition for a new domain preset; add backend code only for a genuinely new
+  `result_type`.
 - After changing routes or schemas, regenerate `openapi.json` and shared TypeScript types.
 - Add database changes only through a new Alembic migration.

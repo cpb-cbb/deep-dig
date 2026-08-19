@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
 
 from app.errors import AppError
 from app.models import Job, JobItem
@@ -69,13 +68,14 @@ def make_job_payload() -> JobCreate:
     )
 
 
-def test_job_payload_rejects_removed_workflows():
-    with pytest.raises(ValidationError):
-        JobCreate(
-            workflow_id="code_friendly",
-            config={"properties": ["surface area"]},
-            items=[JobCreateItem(file_name="paper.pdf", file_hash="hash-00000001", text="text")],
-        )
+def test_job_payload_accepts_registry_workflow_ids_for_service_validation():
+    payload = JobCreate(
+        workflow_id="custom_record_extraction",
+        config={"fields": []},
+        items=[JobCreateItem(file_name="paper.pdf", file_hash="hash-00000001", text="text")],
+    )
+
+    assert payload.workflow_id == "custom_record_extraction"
 
 
 @pytest.mark.asyncio

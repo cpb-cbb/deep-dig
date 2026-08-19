@@ -41,6 +41,18 @@ uv run pytest
 Tests use isolated service objects and do not require live PostgreSQL, Redis, or an LLM provider.
 When changing job creation or worker state transitions, include a focused regression test.
 
+## Workflow definitions
+
+Built-in workflows live in `packages/workflows/definitions/*.json`. Every definition declares a
+stable `id`, semantic `version`, `domain`, `task_type`, `result_type`, `config_schema`, public
+`output_schema`, `ui_schema`, and server-only execution steps. The registry loads every definition
+and rejects duplicate IDs or malformed metadata.
+
+`POST /jobs` validates configuration against the selected definition and stores the version,
+schema hash, and full workflow snapshot. Workers always execute the stored snapshot; never mutate
+a released definition without increasing its version. Add processor and export regression tests
+for every new `result_type`.
+
 ## Configuration
 
 Use `apps/backend/.env.example` as the authoritative list. Important groups are:

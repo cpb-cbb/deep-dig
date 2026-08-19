@@ -278,13 +278,12 @@ export interface components {
         };
         /** JobCreate */
         JobCreate: {
-            /**
-             * Workflow Id
-             * @description The only supported extraction workflow
-             * @constant
-             */
-            workflow_id: "material_extraction";
-            config: components["schemas"]["MaterialExtractionConfig"];
+            /** Workflow Id */
+            workflow_id: string;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
             /**
              * Items
              * @description Documents in this batch
@@ -365,6 +364,12 @@ export interface components {
             id: string;
             /** Workflow Id */
             workflow_id: string;
+            /** Workflow Version */
+            workflow_version: string;
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
             /** Status */
             status: string;
             /** Total Items */
@@ -456,14 +461,6 @@ export interface components {
              */
             token_type: string;
         };
-        /** MaterialExtractionConfig */
-        MaterialExtractionConfig: {
-            /**
-             * Properties
-             * @description Exact material property names to extract
-             */
-            properties: string[];
-        };
         /** MeOut */
         MeOut: {
             /**
@@ -538,6 +535,24 @@ export interface components {
             description: string;
             /** Version */
             version: string;
+            /** Domain */
+            domain: string;
+            /** Task Type */
+            task_type: string;
+            /** Result Type */
+            result_type: string;
+            /** Config Schema */
+            config_schema: {
+                [key: string]: unknown;
+            };
+            /** Output Schema */
+            output_schema: {
+                [key: string]: unknown;
+            };
+            /** Ui Schema */
+            ui_schema: {
+                [key: string]: unknown;
+            };
             /** Ui Config */
             ui_config: {
                 [key: string]: unknown;

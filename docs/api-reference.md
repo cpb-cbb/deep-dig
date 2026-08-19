@@ -17,8 +17,8 @@ retrying the same logical submission. Every response includes `X-App-Version`.
 | --------- | ---------------------------------- | ---- | ------------------------------------------- |
 | `GET`   | `/healthz`                       | No   | Liveness response                           |
 | `GET`   | `/version`                       | No   | Application version and environment         |
-| `GET`   | `/workflows`                     | No   | List the single supported material workflow |
-| `GET`   | `/workflows/material_extraction` | No   | Get workflow display metadata               |
+| `GET`   | `/workflows`                     | No   | List public workflow schemas and UI metadata |
+| `GET`   | `/workflows/{workflow_id}`       | No   | Get one public workflow definition           |
 | `GET`   | `/me`                            | Yes  | Account and settings                        |
 | `PATCH` | `/me`                            | Yes  | Update display name or user settings        |
 | `GET`   | `/me/llm-settings`               | Yes  | Read effective provider settings            |
@@ -70,9 +70,34 @@ Successful response:
 }
 ```
 
-Only `material_extraction` is accepted. `config.properties` contains 1–100 names, each at most
-200 characters. The backend enforces the configured per-document text-size safety limit but has
-no plan, extraction quota, or per-user batch/concurrency restriction.
+The initial built-ins are `material_extraction`, `custom_record_extraction`, and
+`entity_relation_extraction`. Retrieve `config_schema` and `ui_schema` from `/workflows`; invalid
+configuration returns `INVALID_WORKFLOW_CONFIG`. The backend enforces the configured per-document
+text-size safety limit but has no plan, extraction quota, or per-user batch/concurrency restriction.
+
+Custom records use typed field definitions:
+
+```json
+{
+  "workflow_id": "custom_record_extraction",
+  "config": {
+    "fields": [
+      {
+        "key": "effective_date",
+        "label": "Effective date",
+        "type": "date",
+        "description": "Date the agreement takes effect"
+      }
+    ]
+  },
+  "items": [
+    {"file_name": "contract.pdf", "file_hash": "sha256:...", "text": "..."}
+  ]
+}
+```
+
+Entity extraction accepts `entity_types` and optional `relation_types` arrays. Stable custom field
+keys begin with a letter and contain only letters, numbers, and underscores.
 
 ## States and results
 
@@ -80,9 +105,26 @@ Job states are `pending`, `running`, `completed`, `failed`, and `cancelled`. Ite
 `pending`, `running`, `done`, `failed`, and `cancelled`. A completed parent job may contain failed
 items; use its counters and item list for the exact outcome.
 
-Normalized successful item results contain `samples[].name`, sample-level `properties`, and
-`measurements` split into test `conditions` and measured `performance`. Every property object has
-`value`, `unit`, `remark`, `source`, and `method` fields.
+New normalized results use a common envelope:
+
+```json
+{
+  "success": true,
+  "schema_version": "1.0",
+  "workflow_id": "custom_record_extraction",
+  "workflow_version": "1.0.0",
+  "result_type": "records",
+  "data": {"fields": [], "records": []},
+  "evidence": [],
+  "warnings": [],
+  "validation": {"valid": true, "errors": []},
+  "error": null
+}
+```
+
+`material_property_table` data contains samples, properties, and measurements; `records` contains
+typed values and per-field evidence; `entity_relation` contains typed entities and relations.
+Legacy material results created before the envelope remain readable and exportable.
 
 ## Errors
 
@@ -97,6 +139,7 @@ Application errors use a stable envelope:
 ```
 
 Common codes include `AUTH_REQUIRED`, `AUTH_INVALID`, `WORKFLOW_NOT_FOUND`,
+`INVALID_WORKFLOW_CONFIG`,
 `PAYLOAD_TOO_LARGE`, `JOB_NOT_FOUND`, `EXPORT_TOO_LARGE`, `LLM_NOT_CONFIGURED`, and
 `LLM_RATE_LIMITED`. Request-model violations use FastAPI's standard HTTP 422 response.
 

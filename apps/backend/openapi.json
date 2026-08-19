@@ -974,12 +974,14 @@
         "properties": {
           "workflow_id": {
             "type": "string",
-            "const": "material_extraction",
-            "title": "Workflow Id",
-            "description": "The only supported extraction workflow"
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Workflow Id"
           },
           "config": {
-            "$ref": "#/components/schemas/MaterialExtractionConfig"
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
           },
           "items": {
             "items": {
@@ -994,7 +996,6 @@
         "type": "object",
         "required": [
           "workflow_id",
-          "config",
           "items"
         ],
         "title": "JobCreate"
@@ -1171,6 +1172,15 @@
             "type": "string",
             "title": "Workflow Id"
           },
+          "workflow_version": {
+            "type": "string",
+            "title": "Workflow Version"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -1221,6 +1231,8 @@
         "required": [
           "id",
           "workflow_id",
+          "workflow_version",
+          "config",
           "status",
           "total_items",
           "completed_items",
@@ -1431,27 +1443,6 @@
         ],
         "title": "LoginResponse"
       },
-      "MaterialExtractionConfig": {
-        "properties": {
-          "properties": {
-            "items": {
-              "type": "string",
-              "maxLength": 200,
-              "minLength": 1
-            },
-            "type": "array",
-            "maxItems": 100,
-            "minItems": 1,
-            "title": "Properties",
-            "description": "Exact material property names to extract"
-          }
-        },
-        "type": "object",
-        "required": [
-          "properties"
-        ],
-        "title": "MaterialExtractionConfig"
-      },
       "MeOut": {
         "properties": {
           "id": {
@@ -1648,6 +1639,33 @@
             "type": "string",
             "title": "Version"
           },
+          "domain": {
+            "type": "string",
+            "title": "Domain"
+          },
+          "task_type": {
+            "type": "string",
+            "title": "Task Type"
+          },
+          "result_type": {
+            "type": "string",
+            "title": "Result Type"
+          },
+          "config_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config Schema"
+          },
+          "output_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output Schema"
+          },
+          "ui_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Ui Schema"
+          },
           "ui_config": {
             "additionalProperties": true,
             "type": "object",
@@ -1660,6 +1678,12 @@
           "name",
           "description",
           "version",
+          "domain",
+          "task_type",
+          "result_type",
+          "config_schema",
+          "output_schema",
+          "ui_schema",
           "ui_config"
         ],
         "title": "WorkflowOut"

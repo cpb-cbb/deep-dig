@@ -2,13 +2,15 @@
 
 [English](README.md)
 
-Deep Dig 是一个面向材料科学论文的实验性浏览器端 AI 信息提取工具。系统在后端解析 PDF，
-根据论文内容和用户指定的属性提取结构化数据，并支持导出 Excel 结果。
+Deep Dig 是一个开源、由 Schema 驱动的浏览器端 AI 文档信息提取工具。系统在后端解析 PDF，
+通过可版本化工作流提取带来源依据的结构化数据，并支持导出 Excel 结果。
 
 ## 项目能力
 
-- 上传论文 PDF，并使用 `markitdown` 转换为 Markdown。
-- 通过 `material_extraction` 工作流提取材料科学属性。
+- 上传 PDF 文档，并使用 `markitdown` 转换为 Markdown。
+- 内置材料属性、自定义字段和实体关系三种工作流。
+- 可在界面中定义字段类型，或配置实体类型与关系类型。
+- 保存工作流版本、Schema 哈希和任务快照，保证中断续跑结果一致。
 - 使用 PostgreSQL、Redis 和 ARQ Worker 管理异步任务。
 - 支持 Anthropic、OpenRouter、OpenAI 兼容接口，以及本地开发用的 fake 模式。
 - 可在登录后的设置页配置 Provider、Base URL、模型、API Key 和温度，也可继续读取后端环境变量。
@@ -26,7 +28,7 @@ PDF
   -> PostgreSQL 任务记录 + Redis 队列
   -> ARQ Worker
   -> 配置的 LLM 服务商
-  -> 标准化提取结果
+  -> 版本化工作流 + 标准结果外壳
   -> Excel 导出
 ```
 

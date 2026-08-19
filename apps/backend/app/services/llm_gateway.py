@@ -52,7 +52,13 @@ class LLMGateway:
         raise AppError(503, "LLM_NOT_CONFIGURED", "No LLM provider key configured")
 
     def _call_fake(self, system_prompt: str, user_prompt: str) -> LLMResult:
-        if "isExperimental" in system_prompt:
+        if '"records"' in user_prompt and "Field definitions" in user_prompt:
+            text = '{"records": [], "warnings": ["Fake provider returned no records"]}'
+        elif '"entities"' in user_prompt and "Allowed entity types" in user_prompt:
+            text = '{"entities": [], "relations": [], "warnings": ["Fake provider returned no entities"]}'
+        elif '"samples"' in user_prompt and "Requested properties" in user_prompt:
+            text = '{"samples": []}'
+        elif "isExperimental" in system_prompt:
             text = '{"isExperimental": true, "sampleNames": ["Demo Sample"], "reason": "Fake development response"}'
         elif "JSON" in system_prompt or "JSON" in user_prompt:
             text = '{"investigated_systems": [{"system_name": "Demo Sample", "properties": [{"name": "Yield Strength", "value": "500", "unit": "MPa", "remark": "fake", "source": "Table 1", "method": "tensile test"}]}]}'

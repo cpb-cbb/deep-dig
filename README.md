@@ -2,14 +2,16 @@
 
 [简体中文](README.zh-CN.md)
 
-Deep Dig is an experimental, browser-based AI extraction tool for materials-science papers.
-It parses PDFs on the backend, extracts requested properties from paper content, and exports
-structured results as Excel workbooks.
+Deep Dig is an open-source, schema-driven AI document extraction tool. It parses PDFs on the
+backend, runs versioned extraction workflows, and exports traceable structured results as Excel
+workbooks.
 
 ## Features
 
-- Upload PDF papers and convert them to Markdown with `markitdown`.
-- Extract material-science properties through the `material_extraction` workflow.
+- Upload PDF documents and convert them to Markdown with `markitdown`.
+- Choose built-in material-property, custom-record, or entity-relationship workflows.
+- Define typed custom fields or domain entity and relationship vocabularies from the UI.
+- Keep workflow versions, schema hashes, and immutable job snapshots for reproducible resumes.
 - Queue one extraction item per document with PostgreSQL, Redis, and ARQ workers.
 - Support Anthropic, OpenRouter, and OpenAI-compatible providers, plus a zero-cost fake provider
   for local development.
@@ -29,7 +31,7 @@ PDF
   -> PostgreSQL job records + Redis queue
   -> ARQ worker
   -> configured LLM provider
-  -> normalized extraction result
+  -> versioned workflow + normalized result envelope
   -> Excel export
 ```
 
