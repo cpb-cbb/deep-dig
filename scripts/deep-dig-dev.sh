@@ -10,23 +10,19 @@ API_HOST="${API_HOST:-127.0.0.1}"
 API_PORT="${API_PORT:-8001}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
-AUTH_MODE="env"
 LLM_MODE="env"
 WITH_DESKTOP="true"
 
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/deep-dig-dev.sh start [--auth env|real|dev] [--llm env|real|fake] [--no-desktop]
+  scripts/deep-dig-dev.sh start [--llm env|real|fake] [--no-desktop]
   scripts/deep-dig-dev.sh stop
   scripts/deep-dig-dev.sh restart [same options as start]
   scripts/deep-dig-dev.sh status
   scripts/deep-dig-dev.sh logs [api|worker|redis|desktop]
 
 Modes:
-  --auth env   read DEV_AUTH_ENABLED from apps/backend/.env
-  --auth real  force DEV_AUTH_ENABLED=false
-  --auth dev   force DEV_AUTH_ENABLED=true
   --llm env    read LLM_PROVIDER from apps/backend/.env
   --llm real   do not override LLM_PROVIDER
   --llm fake   force LLM_PROVIDER=fake
@@ -64,12 +60,6 @@ declare -a backend_env_args=()
 
 build_backend_env() {
   backend_env_args=()
-  case "$AUTH_MODE" in
-    env) ;;
-    real) backend_env_args+=("DEV_AUTH_ENABLED=false") ;;
-    dev) backend_env_args+=("DEV_AUTH_ENABLED=true") ;;
-    *) echo "Unknown auth mode: $AUTH_MODE" >&2; exit 2 ;;
-  esac
 
   case "$LLM_MODE" in
     env|real) ;;
@@ -134,7 +124,7 @@ start_worker() {
 
 start_desktop() {
   [[ "$WITH_DESKTOP" == "true" ]] || return
-  start_process desktop "$ROOT_DIR/apps/desktop" env "VITE_API_BASE_URL=http://$API_HOST:$API_PORT" pnpm tauri dev
+  start_process desktop "$ROOT_DIR/apps/desktop" env "VITE_API_BASE_URL=http://$API_HOST:$API_PORT" pnpm dev
 }
 
 stop_process() {
@@ -217,10 +207,6 @@ parse_start_args() {
     case "$1" in
       --)
         shift
-        ;;
-      --auth)
-        AUTH_MODE="${2:-}"
-        shift 2
         ;;
       --llm)
         LLM_MODE="${2:-}"

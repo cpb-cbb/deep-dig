@@ -38,12 +38,20 @@ HEADERS = [
 
 
 def build_job_xlsx(job: Job) -> bytes:
-    result_rows = [HEADERS, *_result_rows(job)]
-    summary_rows = _summary_rows(job)
+    result_type = _result_type(job)
+    if result_type == "records":
+        result_rows = _record_result_rows(job)
+        summary_rows = _record_summary_rows(job)
+    elif result_type == "entity_relation":
+        result_rows = _entity_result_rows(job)
+        summary_rows = _entity_summary_rows(job)
+    else:
+        result_rows = [HEADERS, *_result_rows(job)]
+        summary_rows = _summary_rows(job)
     if len(result_rows) > MAX_EXCEL_ROWS or len(summary_rows) > MAX_EXCEL_ROWS:
         raise ExportTooLargeError(
             "Excel export exceeds the 1,048,576-row worksheet limit; "
-            "reduce the batch size or requested properties"
+            "reduce the batch size or extraction schema"
         )
     buffer = BytesIO()
     with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
@@ -65,7 +73,7 @@ def _result_rows(job: Job) -> list[list[Any]]:
     rows: list[list[Any]] = []
     for item in sorted(job.items, key=lambda value: value.ordinal):
         try:
-            parsed = item.parsed_result or {}
+            parsed = _result_data(item.parsed_result or {})
             samples = parsed.get("samples") if isinstance(parsed, dict) else None
             if isinstance(samples, list) and samples:
                 for sample in samples:
@@ -229,7 +237,7 @@ def _summary_rows(job: Job) -> list[list[Any]]:
     rows = [["Sample", *properties]]
     for item in sorted(job.items, key=lambda value: value.ordinal):
         try:
-            parsed = item.parsed_result or {}
+            parsed = _result_data(item.parsed_result or {})
             samples = parsed.get("samples") if isinstance(parsed, dict) else None
             if not isinstance(samples, list):
                 continue
@@ -253,7 +261,7 @@ def _requested_properties(job: Job) -> list[str]:
     seen: set[str] = set()
     properties: list[str] = []
     for item in sorted(job.items, key=lambda value: value.ordinal):
-        parsed = item.parsed_result or {}
+        parsed = _result_data(item.parsed_result or {})
         headers = parsed.get("headers") if isinstance(parsed, dict) else None
         if not isinstance(headers, list):
             continue
@@ -326,6 +334,204 @@ def _summary_property_value(property_name: str, *groups: dict[str, Any]) -> str:
         if value not in (None, ""):
             return str(value)
     return ""
+
+
+def _result_type(job: Job) -> str:
+    snapshot = job.workflow_snapshot if isinstance(job.workflow_snapshot, dict) else {}
+    configured = snapshot.get("result_type")
+    if isinstance(configured, str):
+        return configured
+    for item in job.items:
+        parsed = item.parsed_result if isinstance(item.parsed_result, dict) else {}
+        if isinstance(parsed.get("result_type"), str):
+            return parsed["result_type"]
+    return "material_property_table"
+
+
+def _result_data(parsed: Any) -> dict[str, Any]:
+    if not isinstance(parsed, dict):
+        return {}
+    data = parsed.get("data")
+    return data if isinstance(data, dict) else parsed
+
+
+def _record_result_rows(job: Job) -> list[list[Any]]:
+    rows: list[list[Any]] = [
+        [
+            "Job ID",
+            "Workflow",
+            "File Name",
+            "File Hash",
+            "Item Status",
+            "Record",
+            "Field Key",
+            "Field",
+            "Value",
+            "Evidence",
+            "Location",
+            "Error",
+        ]
+    ]
+    labels = _record_field_labels(job)
+    for item in sorted(job.items, key=lambda value: value.ordinal):
+        parsed = _result_data(item.parsed_result or {})
+        records = parsed.get("records")
+        if not isinstance(records, list) or not records:
+            rows.append(
+                _base_row(job, item)
+                + ["", "", "", "", "", "", _item_error(item, item.parsed_result)]
+            )
+            continue
+        for record_index, record in enumerate(records, start=1):
+            if not isinstance(record, dict):
+                continue
+            values = record.get("values", {})
+            evidence = record.get("evidence", {})
+            if not isinstance(values, dict):
+                continue
+            for key, value in values.items():
+                source = evidence.get(key, {}) if isinstance(evidence, dict) else {}
+                if not isinstance(source, dict):
+                    source = {}
+                rows.append(
+                    _base_row(job, item)
+                    + [
+                        record_index,
+                        key,
+                        labels.get(key, key),
+                        _display_value(value),
+                        source.get("quote", ""),
+                        source.get("location", ""),
+                        "",
+                    ]
+                )
+    return rows
+
+
+def _record_summary_rows(job: Job) -> list[list[Any]]:
+    labels = _record_field_labels(job)
+    keys = list(labels)
+    rows: list[list[Any]] = [["File Name", "Record", *[labels[key] for key in keys]]]
+    for item in sorted(job.items, key=lambda value: value.ordinal):
+        records = _result_data(item.parsed_result or {}).get("records", [])
+        if not isinstance(records, list):
+            continue
+        for index, record in enumerate(records, start=1):
+            values = record.get("values", {}) if isinstance(record, dict) else {}
+            if not isinstance(values, dict):
+                values = {}
+            rows.append(
+                [item.file_name, index, *[_display_value(values.get(key, "")) for key in keys]]
+            )
+    return rows
+
+
+def _record_field_labels(job: Job) -> dict[str, str]:
+    config = job.config if isinstance(job.config, dict) else {}
+    fields = config.get("fields", [])
+    return {
+        str(field.get("key")): str(field.get("label") or field.get("key"))
+        for field in fields
+        if isinstance(field, dict) and field.get("key")
+    }
+
+
+def _entity_result_rows(job: Job) -> list[list[Any]]:
+    rows: list[list[Any]] = [
+        [
+            "Job ID",
+            "Workflow",
+            "File Name",
+            "File Hash",
+            "Item Status",
+            "Record Type",
+            "ID / Source",
+            "Type",
+            "Name / Target",
+            "Attributes",
+            "Evidence",
+            "Location",
+            "Error",
+        ]
+    ]
+    for item in sorted(job.items, key=lambda value: value.ordinal):
+        data = _result_data(item.parsed_result or {})
+        entities = data.get("entities", [])
+        relations = data.get("relations", [])
+        wrote = False
+        if isinstance(entities, list):
+            for entity in entities:
+                if not isinstance(entity, dict):
+                    continue
+                evidence = entity.get("evidence", {})
+                evidence = evidence if isinstance(evidence, dict) else {}
+                rows.append(
+                    _base_row(job, item)
+                    + [
+                        "entity",
+                        entity.get("id", ""),
+                        entity.get("type", ""),
+                        entity.get("name", ""),
+                        _display_value(entity.get("attributes", {})),
+                        evidence.get("quote", ""),
+                        evidence.get("location", ""),
+                        "",
+                    ]
+                )
+                wrote = True
+        if isinstance(relations, list):
+            for relation in relations:
+                if not isinstance(relation, dict):
+                    continue
+                evidence = relation.get("evidence", {})
+                evidence = evidence if isinstance(evidence, dict) else {}
+                rows.append(
+                    _base_row(job, item)
+                    + [
+                        "relation",
+                        relation.get("source", ""),
+                        relation.get("type", ""),
+                        relation.get("target", ""),
+                        _display_value(relation.get("attributes", {})),
+                        evidence.get("quote", ""),
+                        evidence.get("location", ""),
+                        "",
+                    ]
+                )
+                wrote = True
+        if not wrote:
+            rows.append(
+                _base_row(job, item)
+                + ["", "", "", "", "", "", "", _item_error(item, item.parsed_result)]
+            )
+    return rows
+
+
+def _entity_summary_rows(job: Job) -> list[list[Any]]:
+    rows: list[list[Any]] = [["File Name", "Entities", "Relationships", "Warnings"]]
+    for item in sorted(job.items, key=lambda value: value.ordinal):
+        parsed = item.parsed_result if isinstance(item.parsed_result, dict) else {}
+        data = _result_data(parsed)
+        entities = data.get("entities", [])
+        relations = data.get("relations", [])
+        warnings = parsed.get("warnings", [])
+        rows.append(
+            [
+                item.file_name,
+                len(entities) if isinstance(entities, list) else 0,
+                len(relations) if isinstance(relations, list) else 0,
+                "; ".join(str(value) for value in warnings) if isinstance(warnings, list) else "",
+            ]
+        )
+    return rows
+
+
+def _display_value(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        import json
+
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return "" if value is None else str(value)
 
 
 def _worksheet_xml(rows: list[list[Any]]) -> str:

@@ -2,12 +2,12 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
 
 from app.errors import AppError
 from app.models import Job, JobItem
 from app.schemas import JobCreate, JobCreateItem
 from app.services import job_service
+from app.services.llm_config import environment_llm_config
 from app.workers import arq_worker
 
 
@@ -68,19 +68,20 @@ def make_job_payload() -> JobCreate:
     )
 
 
-def test_job_payload_rejects_removed_workflows():
-    with pytest.raises(ValidationError):
-        JobCreate(
-            workflow_id="code_friendly",
-            config={"properties": ["surface area"]},
-            items=[JobCreateItem(file_name="paper.pdf", file_hash="hash-00000001", text="text")],
-        )
+def test_job_payload_accepts_registry_workflow_ids_for_service_validation():
+    payload = JobCreate(
+        workflow_id="custom_record_extraction",
+        config={"fields": []},
+        items=[JobCreateItem(file_name="paper.pdf", file_hash="hash-00000001", text="text")],
+    )
+
+    assert payload.workflow_id == "custom_record_extraction"
 
 
 @pytest.mark.asyncio
 async def test_create_job_reuses_matching_idempotency_key_without_enqueuing(monkeypatch):
     user_id = uuid4()
-    user = job_service.User(id=user_id, email="user@example.com", plan="free")
+    user = job_service.User(id=user_id, email="user@example.com")
     existing = Job(
         id=uuid4(),
         user_id=user_id,
@@ -109,21 +110,6 @@ async def test_create_job_reuses_matching_idempotency_key_without_enqueuing(monk
     assert queued_items == 0
     assert reused is True
     enqueue.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_create_job_enforces_free_concurrent_job_limit(monkeypatch):
-    user_id = uuid4()
-    user = job_service.User(id=user_id, email="user@example.com", plan="free")
-    db = AsyncMock()
-    db.scalar = AsyncMock(side_effect=[user, 1])
-    monkeypatch.setattr(job_service.settings, "free_concurrent_jobs", 1)
-
-    with pytest.raises(AppError) as exc_info:
-        await job_service.create_job(db, user, make_job_payload(), "desktop-test")
-
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.code == "CONCURRENT_JOB_LIMIT"
 
 
 @pytest.mark.asyncio
@@ -156,6 +142,50 @@ async def test_enqueue_item_jobs_isolates_one_enqueue_failure(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_resume_job_requeues_only_unfinished_items_with_new_queue_ids(monkeypatch):
+    job, item_pairs = make_job_with_items(3)
+    job.status = "running"
+    job.completed_items = 1
+    job.items = [pair[0] for pair in item_pairs]
+    job.items[0].status = "done"
+    job.items[0].raw_text = None
+    job.items[1].status = "running"
+    job.items[1].claim_token = "old-worker-claim"
+    job.items[1].raw_text = item_pairs[1][1]
+    job.items[2].raw_text = item_pairs[2][1]
+    db = AsyncMock()
+    db.scalar = AsyncMock(return_value=job)
+    enqueue = AsyncMock(return_value={})
+    monkeypatch.setattr(job_service, "_enqueue_item_jobs", enqueue)
+
+    resumed, queued, unavailable = await job_service.resume_job(db, job.user_id, job.id)
+
+    assert resumed is job
+    assert queued == 2
+    assert unavailable == 0
+    assert job.status == "pending"
+    assert job.completed_items == 1
+    assert job.items[1].status == "pending"
+    assert job.items[1].claim_token is None
+    enqueue.assert_awaited_once()
+    assert enqueue.await_args.kwargs["resumed"] is True
+
+
+@pytest.mark.asyncio
+async def test_resumed_queue_jobs_get_fresh_ids(monkeypatch):
+    redis = FakeRedis()
+    monkeypatch.setattr(job_service, "create_pool", AsyncMock(return_value=redis))
+    job, items = make_job_with_items(2)
+
+    errors = await job_service._enqueue_item_jobs(job, items, resumed=True)
+
+    assert errors == {}
+    queue_ids = [call[2]["_job_id"] for call in redis.calls]
+    assert all("-resume-" in value for value in queue_ids)
+    assert len(set(queue_ids)) == 2
+
+
+@pytest.mark.asyncio
 async def test_transient_extraction_error_is_retried(monkeypatch):
     redis = FakeRedis()
     run = AsyncMock(
@@ -170,7 +200,12 @@ async def test_transient_extraction_error_is_retried(monkeypatch):
     monkeypatch.setattr(arq_worker.settings, "item_retry_base_seconds", 0)
 
     result = await arq_worker._run_with_retries(
-        redis, uuid4(), "material_extraction", {}, "document"
+        redis,
+        uuid4(),
+        "material_extraction",
+        {},
+        "document",
+        environment_llm_config("fake"),
     )
 
     assert result["parsed_result"]["success"] is True
@@ -185,7 +220,14 @@ async def test_unsuccessful_parsed_result_marks_only_that_item_failed(monkeypatc
     monkeypatch.setattr(
         arq_worker,
         "_claim_item",
-        AsyncMock(return_value=("material_extraction", {})),
+        AsyncMock(
+            return_value=(
+                "material_extraction",
+                {},
+                environment_llm_config("fake"),
+                "claim-token",
+            )
+        ),
     )
     monkeypatch.setattr(
         arq_worker,
@@ -203,5 +245,6 @@ async def test_unsuccessful_parsed_result_marks_only_that_item_failed(monkeypatc
 
     finish.assert_awaited_once()
     assert finish.await_args.kwargs["status"] == "failed"
+    assert finish.await_args.kwargs["claim_token"] == "claim-token"
     assert finish.await_args.kwargs["error_code"] == "RESULT_FORMAT_ERROR"
     assert finish.await_args.kwargs["duration_ms"] >= 0

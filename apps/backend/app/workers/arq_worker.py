@@ -5,19 +5,19 @@ import json
 import time
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from arq.connections import RedisSettings
 from arq.worker import func
 from sqlalchemy import select
 
-from app.config import settings
+from app.config import resolve_worker_max_jobs, settings
 from app.db import SessionLocal
 from app.errors import AppError
-from app.models import Job, JobItem
+from app.models import Job, JobItem, UserSettings
 from app.services.extractor import run_workflow
-from app.services.quota import rollback_quota
+from app.services.llm_config import ResolvedLLMConfig, get_user_llm_config
 from app.services.workflow_registry import get_workflow
 
 TERMINAL_JOB_STATUSES = {"completed", "failed", "cancelled"}
@@ -32,23 +32,23 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
     if claimed is None:
         return
 
-    workflow_id, config = claimed
+    workflow, config, llm_config, claim_token = claimed
     started_at = time.monotonic()
     try:
-        result = await _run_with_retries(ctx["redis"], job_uuid, workflow_id, config, text)
+        result = await _run_with_retries(ctx["redis"], job_uuid, workflow, config, text, llm_config)
     except asyncio.CancelledError:
-        # A graceful worker shutdown lets ARQ redeliver the item. The claim logic
-        # accepts a pending/running item, while terminal items remain idempotent.
-        await _release_item_claim(job_uuid, item_uuid)
+        # A graceful worker shutdown releases the claim so ARQ can redeliver it.
+        await _release_item_claim(job_uuid, item_uuid, claim_token)
         raise
     except JobCancelledError:
-        await _cancel_claimed_item(job_uuid, item_uuid)
+        await _cancel_claimed_item(job_uuid, item_uuid, claim_token)
         return
     except Exception as exc:
         await _finish_item(
             ctx["redis"],
             job_uuid,
             item_uuid,
+            claim_token=claim_token,
             status="failed",
             error_code=_error_code(exc),
             error_message=_error_message(exc),
@@ -59,7 +59,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
     parsed_result = result.get("parsed_result")
     if not isinstance(parsed_result, dict) or not parsed_result.get("success", False):
         error_message = (
-            str(parsed_result.get("error") or "No samples parsed")
+            str(parsed_result.get("error") or "No structured results parsed")
             if isinstance(parsed_result, dict)
             else "Invalid parsed result"
         )
@@ -67,6 +67,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
             ctx["redis"],
             job_uuid,
             item_uuid,
+            claim_token=claim_token,
             status="failed",
             raw_results=result.get("raw_results"),
             parsed_result=parsed_result,
@@ -80,6 +81,7 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
         ctx["redis"],
         job_uuid,
         item_uuid,
+        claim_token=claim_token,
         status="done",
         raw_results=result.get("raw_results"),
         parsed_result=parsed_result,
@@ -87,7 +89,9 @@ async def extract_item(ctx: dict[str, Any], job_id: str, item_id: str, text: str
     )
 
 
-async def _claim_item(job_id: UUID, item_id: UUID) -> tuple[str, dict[str, Any]] | None:
+async def _claim_item(
+    job_id: UUID, item_id: UUID
+) -> tuple[dict[str, Any], dict[str, Any], ResolvedLLMConfig, str] | None:
     async with SessionLocal() as db:
         job = await db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if job is None:
@@ -97,13 +101,16 @@ async def _claim_item(job_id: UUID, item_id: UUID) -> tuple[str, dict[str, Any]]
         )
         if item is None or item.status in TERMINAL_ITEM_STATUSES:
             return None
+        if item.status == "running" and item.claim_token:
+            return None
         if job.status in TERMINAL_JOB_STATUSES:
             if job.status == "cancelled":
                 item.status = "cancelled"
                 item.error_code = "JOB_CANCELLED"
                 item.error_message = "Task was cancelled before extraction started"
                 item.finished_at = datetime.now(timezone.utc)
-                await rollback_quota(db, job.user_id, 1)
+                if not await _should_store_raw_text(db, job.user_id):
+                    item.raw_text = None
                 await db.commit()
             return None
 
@@ -112,14 +119,23 @@ async def _claim_item(job_id: UUID, item_id: UUID) -> tuple[str, dict[str, Any]]
             job.status = "running"
             job.started_at = job.started_at or now
         item.status = "running"
+        claim_token = str(uuid4())
+        item.claim_token = claim_token
+        item.claimed_at = now
         item.error_code = None
         item.error_message = None
-        await db.commit()
+        llm_config = await get_user_llm_config(db, job.user_id)
         config = job.config if isinstance(job.config, dict) else {}
-        return job.workflow_id, config
+        workflow = (
+            job.workflow_snapshot
+            if isinstance(job.workflow_snapshot, dict)
+            else get_workflow(job.workflow_id)
+        )
+        await db.commit()
+        return workflow, config, llm_config, claim_token
 
 
-async def _release_item_claim(job_id: UUID, item_id: UUID) -> None:
+async def _release_item_claim(job_id: UUID, item_id: UUID, claim_token: str) -> None:
     async with SessionLocal() as db:
         job = await db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if job is None:
@@ -127,19 +143,23 @@ async def _release_item_claim(job_id: UUID, item_id: UUID) -> None:
         item = await db.scalar(
             select(JobItem).where(JobItem.id == item_id, JobItem.job_id == job_id).with_for_update()
         )
-        if item is None or item.status != "running":
+        if item is None or item.status != "running" or item.claim_token != claim_token:
             return
         if job.status == "cancelled":
             item.status = "cancelled"
             item.error_code = "JOB_CANCELLED"
             item.error_message = "Task was cancelled during extraction"
             item.finished_at = datetime.now(timezone.utc)
+            if not await _should_store_raw_text(db, job.user_id):
+                item.raw_text = None
         else:
             item.status = "pending"
+            item.claim_token = None
+            item.claimed_at = None
         await db.commit()
 
 
-async def _cancel_claimed_item(job_id: UUID, item_id: UUID) -> None:
+async def _cancel_claimed_item(job_id: UUID, item_id: UUID, claim_token: str) -> None:
     async with SessionLocal() as db:
         job = await db.scalar(select(Job).where(Job.id == job_id).with_for_update())
         if job is None:
@@ -147,29 +167,31 @@ async def _cancel_claimed_item(job_id: UUID, item_id: UUID) -> None:
         item = await db.scalar(
             select(JobItem).where(JobItem.id == item_id, JobItem.job_id == job_id).with_for_update()
         )
-        if item is None or item.status in TERMINAL_ITEM_STATUSES:
+        if item is None or item.status in TERMINAL_ITEM_STATUSES or item.claim_token != claim_token:
             return
         item.status = "cancelled"
         item.error_code = "JOB_CANCELLED"
         item.error_message = "Task was cancelled during extraction"
         item.finished_at = datetime.now(timezone.utc)
+        if not await _should_store_raw_text(db, job.user_id):
+            item.raw_text = None
         await db.commit()
 
 
 async def _run_with_retries(
     redis: Any,
     job_id: UUID,
-    workflow_id: str,
+    workflow: dict[str, Any],
     config: dict[str, Any],
     text: str,
+    llm_config: ResolvedLLMConfig,
 ) -> dict[str, Any]:
-    workflow = get_workflow(workflow_id)
     for attempt in range(1, settings.item_max_tries + 1):
         if await _is_job_cancelled(redis, job_id):
             raise JobCancelledError("Task was cancelled")
         try:
             return await asyncio.wait_for(
-                run_workflow(workflow, text, config),
+                run_workflow(workflow, text, config, llm_config),
                 timeout=settings.item_job_timeout_seconds,
             )
         except Exception as exc:
@@ -194,6 +216,7 @@ async def _finish_item(
     job_id: UUID,
     item_id: UUID,
     *,
+    claim_token: str,
     status: str,
     raw_results: Any = None,
     parsed_result: Any = None,
@@ -212,7 +235,7 @@ async def _finish_item(
         item = await db.scalar(
             select(JobItem).where(JobItem.id == item_id, JobItem.job_id == job_id).with_for_update()
         )
-        if item is None or item.status in TERMINAL_ITEM_STATUSES:
+        if item is None or item.status in TERMINAL_ITEM_STATUSES or item.claim_token != claim_token:
             return
 
         now = datetime.now(timezone.utc)
@@ -223,6 +246,8 @@ async def _finish_item(
         item.error_message = error_message
         item.duration_ms = duration_ms
         item.finished_at = now
+        if not await _should_store_raw_text(db, job.user_id):
+            item.raw_text = None
         if status == "done":
             job.completed_items += 1
         else:
@@ -255,6 +280,13 @@ async def _finish_item(
     await _safe_publish(redis, f"job:{job_id}:events", "progress", event_data)
     if job_done:
         await _safe_publish(redis, f"job:{job_id}:events", "job_done", event_data)
+
+
+async def _should_store_raw_text(db, user_id: UUID) -> bool:
+    value = await db.scalar(
+        select(UserSettings.store_raw_text).where(UserSettings.user_id == user_id)
+    )
+    return bool(value)
 
 
 def _elapsed_ms(started_at: float) -> int:
@@ -315,7 +347,7 @@ class WorkerSettings:
             keep_result=0,
         )
     ]
-    max_jobs = settings.worker_max_jobs
+    max_jobs = resolve_worker_max_jobs(settings.worker_max_jobs)
     job_timeout = _outer_timeout
     max_tries = settings.item_max_tries
     keep_result = 0

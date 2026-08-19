@@ -1,30 +1,26 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.jwt import AuthUser, verify_supabase_jwt
+from app.auth.jwt import AuthUser, verify_auth
 from app.db import get_db
-from app.schemas import MeOut, MePatch, SettingsOut
+from app.schemas import LLMSettingsOut, LLMSettingsPatch, MeOut, MePatch, SettingsOut
 from app.services.job_service import ensure_user
+from app.services.llm_config import apply_llm_settings, llm_settings_view
 
 router = APIRouter(prefix="/me", tags=["me"])
 
 
 @router.get("", response_model=MeOut)
 async def get_me(
-    auth: AuthUser = Depends(verify_supabase_jwt), db: AsyncSession = Depends(get_db)
+    auth: AuthUser = Depends(verify_auth), db: AsyncSession = Depends(get_db)
 ) -> MeOut:
     user = await ensure_user(db, auth.id, auth.email)
     await db.commit()
     return MeOut(
         id=user.id,
+        username=user.username,
         email=user.email or auth.email,
         display_name=user.display_name,
-        plan=user.plan,
-        quota={
-            "limit": user.monthly_quota,
-            "used": user.used_this_month,
-            "reset_at": user.quota_reset_at,
-        },
         settings=SettingsOut.model_validate(user.settings, from_attributes=True),
     )
 
@@ -32,7 +28,7 @@ async def get_me(
 @router.patch("", response_model=MeOut)
 async def patch_me(
     payload: MePatch,
-    auth: AuthUser = Depends(verify_supabase_jwt),
+    auth: AuthUser = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> MeOut:
     user = await ensure_user(db, auth.id, auth.email)
@@ -50,13 +46,29 @@ async def patch_me(
     await db.commit()
     return MeOut(
         id=user.id,
+        username=user.username,
         email=user.email or auth.email,
         display_name=user.display_name,
-        plan=user.plan,
-        quota={
-            "limit": user.monthly_quota,
-            "used": user.used_this_month,
-            "reset_at": user.quota_reset_at,
-        },
         settings=SettingsOut.model_validate(user.settings, from_attributes=True),
     )
+
+
+@router.get("/llm-settings", response_model=LLMSettingsOut)
+async def get_llm_settings(
+    auth: AuthUser = Depends(verify_auth), db: AsyncSession = Depends(get_db)
+) -> LLMSettingsOut:
+    user = await ensure_user(db, auth.id, auth.email)
+    await db.commit()
+    return llm_settings_view(user.settings)
+
+
+@router.patch("/llm-settings", response_model=LLMSettingsOut)
+async def patch_llm_settings(
+    payload: LLMSettingsPatch,
+    auth: AuthUser = Depends(verify_auth),
+    db: AsyncSession = Depends(get_db),
+) -> LLMSettingsOut:
+    user = await ensure_user(db, auth.id, auth.email)
+    apply_llm_settings(user.settings, payload)
+    await db.commit()
+    return llm_settings_view(user.settings)

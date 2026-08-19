@@ -6,7 +6,7 @@ Create Deep Dig as a clean monorepo instead of incrementally mutating the existi
 
 ## Rationale
 
-The prototype mixes browser-only LLM calls, prompt endpoints, and demo-oriented UI. The product architecture requires a new trust boundary: the backend owns prompts, quota, jobs, and LLM provider credentials, while the desktop client parses PDFs locally and submits only text.
+The prototype mixes browser-only LLM calls, prompt endpoints, and demo-oriented UI. The product architecture requires a new trust boundary: the backend owns prompts, jobs, PDF parsing, and LLM provider credentials, while the browser client submits source PDFs and extraction requests.
 
 ## Consequences
 

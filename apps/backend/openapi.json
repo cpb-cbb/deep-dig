@@ -5,6 +5,88 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register",
+        "operationId": "register_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "tags": [
@@ -94,6 +176,112 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/llm-settings": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Get Llm Settings",
+        "operationId": "get_llm_settings_me_llm_settings_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMSettingsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Patch Llm Settings",
+        "operationId": "patch_llm_settings_me_llm_settings_patch",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LLMSettingsPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMSettingsOut"
                 }
               }
             }
@@ -561,6 +749,65 @@
         }
       }
     },
+    "/jobs/{job_id}/resume": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Post Resume",
+        "operationId": "post_resume_jobs__job_id__resume_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResumeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/jobs/{job_id}/events": {
       "get": {
         "tags": [
@@ -602,6 +849,69 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/parse": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Parse Files",
+        "operationId": "parse_files_files_parse_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_parse_files_files_parse_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ParsedFileOut"
+                  },
+                  "title": "Response Parse Files Files Parse Post"
+                }
               }
             }
           },
@@ -671,6 +981,23 @@
   },
   "components": {
     "schemas": {
+      "Body_parse_files_files_parse_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_parse_files_files_parse_post"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -688,12 +1015,14 @@
         "properties": {
           "workflow_id": {
             "type": "string",
-            "const": "material_extraction",
-            "title": "Workflow Id",
-            "description": "The only supported extraction workflow"
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Workflow Id"
           },
           "config": {
-            "$ref": "#/components/schemas/MaterialExtractionConfig"
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
           },
           "items": {
             "items": {
@@ -708,7 +1037,6 @@
         "type": "object",
         "required": [
           "workflow_id",
-          "config",
           "items"
         ],
         "title": "JobCreate"
@@ -727,13 +1055,13 @@
             "maxLength": 128,
             "minLength": 8,
             "title": "File Hash",
-            "description": "Stable content hash generated by the desktop parser"
+            "description": "Stable content hash generated by the backend parser"
           },
           "text": {
             "type": "string",
             "minLength": 1,
             "title": "Text",
-            "description": "Locally parsed Markdown text; the PDF is not uploaded"
+            "description": "Parsed Markdown text; the PDF is not stored"
           }
         },
         "type": "object",
@@ -885,6 +1213,15 @@
             "type": "string",
             "title": "Workflow Id"
           },
+          "workflow_version": {
+            "type": "string",
+            "title": "Workflow Version"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -935,6 +1272,8 @@
         "required": [
           "id",
           "workflow_id",
+          "workflow_version",
+          "config",
           "status",
           "total_items",
           "completed_items",
@@ -945,26 +1284,206 @@
         ],
         "title": "JobOut"
       },
-      "MaterialExtractionConfig": {
+      "JobResumeOut": {
         "properties": {
-          "properties": {
-            "items": {
-              "type": "string",
-              "maxLength": 200,
-              "minLength": 1
-            },
-            "type": "array",
-            "maxItems": 100,
-            "minItems": 1,
-            "title": "Properties",
-            "description": "Exact material property names to extract"
+          "job_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Job Id"
+          },
+          "queued_items": {
+            "type": "integer",
+            "title": "Queued Items"
+          },
+          "unavailable_items": {
+            "type": "integer",
+            "title": "Unavailable Items"
           }
         },
         "type": "object",
         "required": [
-          "properties"
+          "job_id",
+          "queued_items",
+          "unavailable_items"
         ],
-        "title": "MaterialExtractionConfig"
+        "title": "JobResumeOut"
+      },
+      "LLMSettingsOut": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "environment",
+              "custom"
+            ],
+            "title": "Source"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "openrouter",
+              "anthropic",
+              "openai_compatible",
+              "fake"
+            ],
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "temperature": {
+            "type": "number",
+            "title": "Temperature"
+          },
+          "api_key_configured": {
+            "type": "boolean",
+            "title": "Api Key Configured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "provider",
+          "base_url",
+          "model",
+          "temperature",
+          "api_key_configured"
+        ],
+        "title": "LLMSettingsOut"
+      },
+      "LLMSettingsPatch": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "environment",
+              "custom"
+            ],
+            "title": "Mode"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openrouter",
+                  "anthropic",
+                  "openai_compatible",
+                  "fake"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "clear_api_key": {
+            "type": "boolean",
+            "title": "Clear Api Key",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "LLMSettingsPatch"
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token"
+        ],
+        "title": "LoginResponse"
       },
       "MeOut": {
         "properties": {
@@ -972,6 +1491,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Id"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
           },
           "email": {
             "anyOf": [
@@ -995,15 +1525,6 @@
             ],
             "title": "Display Name"
           },
-          "plan": {
-            "type": "string",
-            "title": "Plan"
-          },
-          "quota": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Quota"
-          },
           "settings": {
             "$ref": "#/components/schemas/SettingsOut"
           }
@@ -1011,10 +1532,9 @@
         "type": "object",
         "required": [
           "id",
+          "username",
           "email",
           "display_name",
-          "plan",
-          "quota",
           "settings"
         ],
         "title": "MeOut"
@@ -1047,6 +1567,81 @@
         },
         "type": "object",
         "title": "MePatch"
+      },
+      "ParsedFileOut": {
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "fileHash": {
+            "type": "string",
+            "title": "Filehash"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "textFormat": {
+            "type": "string",
+            "const": "markdown",
+            "title": "Textformat"
+          },
+          "textLength": {
+            "type": "integer",
+            "title": "Textlength"
+          },
+          "reused": {
+            "type": "boolean",
+            "title": "Reused"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fileName",
+          "fileHash",
+          "text",
+          "textFormat",
+          "textLength",
+          "reused"
+        ],
+        "title": "ParsedFileOut"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 8,
+            "title": "Password"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "RegisterRequest"
       },
       "SettingsOut": {
         "properties": {
@@ -1134,6 +1729,33 @@
             "type": "string",
             "title": "Version"
           },
+          "domain": {
+            "type": "string",
+            "title": "Domain"
+          },
+          "task_type": {
+            "type": "string",
+            "title": "Task Type"
+          },
+          "result_type": {
+            "type": "string",
+            "title": "Result Type"
+          },
+          "config_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config Schema"
+          },
+          "output_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output Schema"
+          },
+          "ui_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Ui Schema"
+          },
           "ui_config": {
             "additionalProperties": true,
             "type": "object",
@@ -1146,6 +1768,12 @@
           "name",
           "description",
           "version",
+          "domain",
+          "task_type",
+          "result_type",
+          "config_schema",
+          "output_schema",
+          "ui_schema",
           "ui_config"
         ],
         "title": "WorkflowOut"

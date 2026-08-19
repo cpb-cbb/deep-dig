@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -9,7 +9,9 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     Text,
@@ -24,26 +26,16 @@ class Base(DeclarativeBase):
     pass
 
 
-def next_month() -> datetime:
-    now = datetime.now(timezone.utc)
-    month = 1 if now.month == 12 else now.month + 1
-    year = now.year + 1 if now.month == 12 else now.year
-    return datetime(year, month, 1, tzinfo=timezone.utc)
-
-
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (Index("uq_users_username", "username", unique=True),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    username: Mapped[str | None] = mapped_column(Text)
+    password_hash: Mapped[str | None] = mapped_column(Text)
     email: Mapped[str | None] = mapped_column(Text)
     display_name: Mapped[str | None] = mapped_column(Text)
-    plan: Mapped[str] = mapped_column(Text, default="free")
-    monthly_quota: Mapped[int] = mapped_column(Integer, default=50)
-    used_this_month: Mapped[int] = mapped_column(Integer, default=0)
-    quota_reset_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=next_month)
     total_extractions: Mapped[int] = mapped_column(BigInteger, default=0)
-    is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
-    ban_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -65,6 +57,11 @@ class UserSettings(Base):
     store_raw_text: Mapped[bool] = mapped_column(Boolean, default=False)
     notify_on_job_complete: Mapped[bool] = mapped_column(Boolean, default=True)
     telemetry_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
+    llm_provider: Mapped[str | None] = mapped_column(Text)
+    llm_base_url: Mapped[str | None] = mapped_column(Text)
+    llm_model: Mapped[str | None] = mapped_column(Text)
+    llm_api_key_encrypted: Mapped[str | None] = mapped_column(Text)
+    llm_temperature: Mapped[float | None] = mapped_column(Float)
 
     user: Mapped[User] = relationship(back_populates="settings")
 
@@ -80,6 +77,9 @@ class Job(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     workflow_id: Mapped[str] = mapped_column(Text, nullable=False)
+    workflow_version: Mapped[str] = mapped_column(Text, nullable=False, default="1.0.0")
+    workflow_schema_hash: Mapped[str | None] = mapped_column(Text)
+    workflow_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(Text, default="pending")
     total_items: Mapped[int] = mapped_column(Integer)
     completed_items: Mapped[int] = mapped_column(Integer, default=0)
@@ -108,6 +108,8 @@ class JobItem(Base):
     file_hash: Mapped[str] = mapped_column(Text, nullable=False)
     text_length: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(Text, default="pending")
+    claim_token: Mapped[str | None] = mapped_column(Text)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw_text: Mapped[str | None] = mapped_column(Text)
     raw_results: Mapped[dict | None] = mapped_column(JSONB)
     parsed_result: Mapped[dict | None] = mapped_column(JSONB)

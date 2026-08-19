@@ -7,6 +7,7 @@ import httpx
 
 from app.config import settings
 from app.errors import AppError
+from app.services.llm_config import ResolvedLLMConfig, environment_llm_config
 
 
 @dataclass(frozen=True)
@@ -26,21 +27,38 @@ class LLMGateway:
         self,
         system_prompt: str,
         user_prompt: str,
-        model: str = "anthropic/claude-3.5-haiku",
+        model: str | None = None,
+        config: ResolvedLLMConfig | None = None,
         **kwargs: Any,
     ) -> LLMResult:
-        if settings.llm_provider == "fake":
+        active = config or environment_llm_config()
+        if active.provider == "fake":
             return self._call_fake(system_prompt, user_prompt)
-        if settings.llm_provider in {"auto", "openai_compatible"} and settings.llm_compat_api_key:
-            return await self._call_openai_compatible(system_prompt, user_prompt, **kwargs)
-        if settings.llm_provider in {"auto", "openrouter"} and settings.llm_openrouter_key:
-            return await self._call_openrouter(system_prompt, user_prompt, model, **kwargs)
-        if settings.llm_provider in {"auto", "anthropic"} and settings.llm_anthropic_key:
-            return await self._call_anthropic(system_prompt, user_prompt, model, **kwargs)
+        if not active.api_key:
+            raise AppError(503, "LLM_NOT_CONFIGURED", "No LLM provider key configured")
+        selected_model = model or active.model
+        if active.provider == "openai_compatible":
+            return await self._call_openai_compatible(
+                active, system_prompt, user_prompt, selected_model, **kwargs
+            )
+        if active.provider == "openrouter":
+            return await self._call_openrouter(
+                active, system_prompt, user_prompt, selected_model, **kwargs
+            )
+        if active.provider == "anthropic":
+            return await self._call_anthropic(
+                active, system_prompt, user_prompt, selected_model, **kwargs
+            )
         raise AppError(503, "LLM_NOT_CONFIGURED", "No LLM provider key configured")
 
     def _call_fake(self, system_prompt: str, user_prompt: str) -> LLMResult:
-        if "isExperimental" in system_prompt:
+        if '"records"' in user_prompt and "Field definitions" in user_prompt:
+            text = '{"records": [], "warnings": ["Fake provider returned no records"]}'
+        elif '"entities"' in user_prompt and "Allowed entity types" in user_prompt:
+            text = '{"entities": [], "relations": [], "warnings": ["Fake provider returned no entities"]}'
+        elif '"samples"' in user_prompt and "Requested properties" in user_prompt:
+            text = '{"samples": []}'
+        elif "isExperimental" in system_prompt:
             text = '{"isExperimental": true, "sampleNames": ["Demo Sample"], "reason": "Fake development response"}'
         elif "JSON" in system_prompt or "JSON" in user_prompt:
             text = '{"investigated_systems": [{"system_name": "Demo Sample", "properties": [{"name": "Yield Strength", "value": "500", "unit": "MPa", "remark": "fake", "source": "Table 1", "method": "tensile test"}]}]}'
@@ -54,27 +72,32 @@ class LLMGateway:
             cost_usd=0.0,
         )
 
-    def _chat_completions_url(self) -> str:
-        base_url = settings.llm_compat_base_url.rstrip("/")
+    def _chat_completions_url(self, base_url: str | None = None) -> str:
+        base_url = (base_url or settings.llm_compat_base_url).rstrip("/")
         if base_url.endswith("/chat/completions"):
             return base_url
         return f"{base_url}/chat/completions"
 
     async def _call_openai_compatible(
-        self, system_prompt: str, user_prompt: str, **kwargs: Any
+        self,
+        config: ResolvedLLMConfig,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        **kwargs: Any,
     ) -> LLMResult:
         payload = {
-            "model": kwargs.get("model") or settings.llm_compat_model,
+            "model": kwargs.get("model") or model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": kwargs.get("temperature", 0),
+            "temperature": kwargs.get("temperature", config.temperature),
         }
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
-                self._chat_completions_url(),
-                headers={"Authorization": f"Bearer {settings.llm_compat_api_key}"},
+                self._chat_completions_url(config.base_url),
+                headers={"Authorization": f"Bearer {config.api_key}"},
                 json=payload,
             )
             if response.status_code == 429:
@@ -91,7 +114,12 @@ class LLMGateway:
         )
 
     async def _call_openrouter(
-        self, system_prompt: str, user_prompt: str, model: str, **kwargs: Any
+        self,
+        config: ResolvedLLMConfig,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        **kwargs: Any,
     ) -> LLMResult:
         payload = {
             "model": model,
@@ -99,12 +127,12 @@ class LLMGateway:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": kwargs.get("temperature", 0),
+            "temperature": kwargs.get("temperature", config.temperature),
         }
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.llm_openrouter_key}"},
+                self._chat_completions_url(config.base_url),
+                headers={"Authorization": f"Bearer {config.api_key}"},
                 json=payload,
             )
             if response.status_code == 429:
@@ -121,21 +149,27 @@ class LLMGateway:
         )
 
     async def _call_anthropic(
-        self, system_prompt: str, user_prompt: str, model: str, **kwargs: Any
+        self,
+        config: ResolvedLLMConfig,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        **kwargs: Any,
     ) -> LLMResult:
-        anthropic_model = kwargs.get("anthropic_model", "claude-3-5-haiku-latest")
+        base_url = config.base_url.rstrip("/")
+        messages_url = base_url if base_url.endswith("/messages") else f"{base_url}/messages"
         payload = {
-            "model": anthropic_model,
+            "model": kwargs.get("anthropic_model") or model,
             "max_tokens": kwargs.get("max_tokens", 4096),
-            "temperature": kwargs.get("temperature", 0),
+            "temperature": kwargs.get("temperature", config.temperature),
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}],
         }
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
-                "https://api.anthropic.com/v1/messages",
+                messages_url,
                 headers={
-                    "x-api-key": settings.llm_anthropic_key,
+                    "x-api-key": config.api_key,
                     "anthropic-version": "2023-06-01",
                 },
                 json=payload,

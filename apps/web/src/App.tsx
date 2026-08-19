@@ -44,7 +44,7 @@ const translations = {
     client: '获取客户端',
     languageLabel: '切换为英文',
     languageShort: 'EN',
-    availability: '公测期间 · 免费 50 次提取',
+    availability: '开源自部署 · 无内置任务额度',
     heroTitle: ['从文献到', '数据，', '只需片刻。'],
     heroLede: '指定你关心的字段，Deep Dig 自动从 PDF、研究文稿与报告中定位信息，输出干净、可计算的表格数据。',
     start: '免费开始使用',
@@ -59,11 +59,11 @@ const translations = {
     validated: '字段校验完成',
     signal: ['PDF', '定位', '提取', '校验', 'XLSX / CSV'],
     capabilitiesTitle: ['不只读懂文献，', '更把知识变成数据。'],
-    capabilitiesLede: '同一套高速提取引擎，兼顾开放场景与专业材料文献。',
+    capabilitiesLede: '同一套版本化工作流引擎，支持专业模板、自定义字段与实体关系。',
     general: {
       title: '通用字段提取',
-      description: '直接描述你想要的数据，无需预设模板。适合论文、报告、档案及各类长文稿。',
-      benefits: ['自然语言定义字段', '跨文档统一数据结构', '结果附带来源定位'],
+      description: '通过字段构建器定义名称、类型和抽取说明，适合论文、合同、报告、档案及各类长文稿。',
+      benefits: ['类型化字段 Schema', '跨文档统一数据结构', '结果附带来源依据'],
     },
     materials: {
       title: '材料文献提取',
@@ -71,8 +71,8 @@ const translations = {
       map: ['样品', '工艺', '性能'],
       benefits: ['多样品关系对齐', '单位与条件保留', '适配材料数据建模'],
     },
-    quota: '次免费提取额度',
-    quotaNote: '无需信用卡 · 公测期开放',
+    openSource: '无内置提取额度',
+    openSourceNote: '运行成本取决于你选择的模型服务商',
     workflowTitle: ['三步，把资料库', '变成数据集。'],
     workflowIntro: '以下用 12 篇钛合金论文，演示“字段”到底是什么。',
     workflowSteps: [
@@ -105,9 +105,9 @@ const translations = {
     examplesLede: ['字段由你定义，结构由 Deep Dig 整理。', '从单篇验证，到数百篇批量研究。'],
     domains: [
       { title: '材料科学', caption: 'Materials', description: '从论文中批量提取材料成分、制备工艺、实验条件与性能参数。', fields: ['化学成分', '热处理制度', '力学性能'] },
-      { title: '生命科学', caption: 'Life Science', description: '整理研究对象、样本量、干预方式、指标与统计结论。', fields: ['样本规模', '实验组别', '关键指标'] },
-      { title: '产业研究', caption: 'Industry', description: '把报告中的企业、产品、产能、价格与市场数据汇总成表。', fields: ['公司名称', '产能规模', '市场份额'] },
-      { title: '通用文献', caption: 'General', description: '不受固定模板限制，用自然语言定义任何需要抽取的字段。', fields: ['研究方法', '核心结论', '自定义字段'] },
+      { title: '法律文档', caption: 'Legal', description: '用自定义字段整理合同主体、日期、义务、期限和条款依据。', fields: ['合同主体', '生效日期', '关键义务'] },
+      { title: '医学研究', caption: 'Medical', description: '整理研究对象、样本量、干预方式、指标与统计结论。', fields: ['样本规模', '干预方式', '关键指标'] },
+      { title: '实体关系', caption: 'Knowledge Graph', description: '按指定类型识别人名、机构、药物、法规及其显式关系。', fields: ['实体类型', '关系类型', '来源证据'] },
     ],
     downloadTitle: ['在你的电脑上，', '开始深挖。'],
     downloadLede: 'Deep Dig 桌面客户端正在准备中。首个版本将支持 macOS 与 Windows。',
@@ -125,7 +125,7 @@ const translations = {
     client: 'Get the app',
     languageLabel: 'Switch to Chinese',
     languageShort: '中',
-    availability: 'PUBLIC BETA · 50 FREE EXTRACTIONS',
+    availability: 'OPEN SOURCE · SELF-HOSTED',
     heroTitle: ['From papers', 'to data,', 'in moments.'],
     heroLede: 'Tell Deep Dig which fields matter. It finds them across PDFs, research papers, and reports, then returns clean, analysis-ready tables.',
     start: 'Start for free',
@@ -140,11 +140,11 @@ const translations = {
     validated: 'Fields validated',
     signal: ['PDF', 'LOCATE', 'EXTRACT', 'VALIDATE', 'XLSX / CSV'],
     capabilitiesTitle: ['More than reading papers.', 'Knowledge becomes data.'],
-    capabilitiesLede: 'One high-speed extraction engine for open-ended documents and specialist materials literature.',
+    capabilitiesLede: 'One versioned workflow engine for specialist templates, custom fields, and entity relationships.',
     general: {
       title: 'General extraction',
-      description: 'Describe the data you want in plain language—no fixed template required. Built for papers, reports, archives, and long documents.',
-      benefits: ['Define fields in plain language', 'One schema across documents', 'Every result links to its source'],
+      description: 'Use the field builder to define names, types, and extraction guidance for papers, contracts, reports, archives, and long documents.',
+      benefits: ['Typed field schemas', 'One schema across documents', 'Every result links to evidence'],
     },
     materials: {
       title: 'Materials extraction',
@@ -152,8 +152,8 @@ const translations = {
       map: ['SAMPLE', 'PROCESS', 'PROPERTY'],
       benefits: ['Align multi-sample relationships', 'Preserve units and conditions', 'Ready for materials modeling'],
     },
-    quota: 'free extractions',
-    quotaNote: 'No credit card · Available during beta',
+    openSource: 'no built-in extraction quota',
+    openSourceNote: 'Usage cost depends on your LLM provider',
     workflowTitle: ['Three steps from', 'library to dataset.'],
     workflowIntro: 'Here is what “fields” mean, using 12 titanium-alloy papers as one continuous example.',
     workflowSteps: [
@@ -186,9 +186,9 @@ const translations = {
     examplesLede: ['You define the fields. Deep Dig creates the structure.', 'From one-paper validation to studies with hundreds.'],
     domains: [
       { title: 'Materials science', caption: 'Materials', description: 'Extract compositions, processes, experimental conditions, and properties across papers.', fields: ['Composition', 'Heat treatment', 'Properties'] },
-      { title: 'Life science', caption: 'Life Science', description: 'Organize cohorts, sample sizes, interventions, outcomes, and statistical findings.', fields: ['Sample size', 'Study groups', 'Outcomes'] },
-      { title: 'Industry research', caption: 'Industry', description: 'Turn reports into tables of companies, products, capacity, pricing, and market data.', fields: ['Company', 'Capacity', 'Market share'] },
-      { title: 'General literature', caption: 'General', description: 'Move beyond fixed templates and define any field you need in natural language.', fields: ['Method', 'Key finding', 'Custom field'] },
+      { title: 'Legal documents', caption: 'Legal', description: 'Structure contract parties, dates, obligations, deadlines, and supporting clauses.', fields: ['Parties', 'Effective date', 'Obligations'] },
+      { title: 'Medical research', caption: 'Medical', description: 'Organize cohorts, sample sizes, interventions, outcomes, and statistical findings.', fields: ['Sample size', 'Intervention', 'Outcomes'] },
+      { title: 'Entity graphs', caption: 'Knowledge Graph', description: 'Find typed people, organizations, drugs, statutes, and their explicit relationships.', fields: ['Entity types', 'Relations', 'Evidence'] },
     ],
     downloadTitle: ['Dig deeper,', 'right on your desktop.'],
     downloadLede: 'The Deep Dig desktop app is on its way. The first release will support macOS and Windows.',
@@ -330,8 +330,8 @@ export function App() {
             <ul>{t.materials.benefits.map((benefit) => <li key={benefit}><Check />{benefit}</li>)}</ul>
           </article>
 
-          <aside className="quota-block">
-            <div><Gauge size={23} /><span>PUBLIC BETA</span></div><strong>50</strong><p>{t.quota}</p><small>{t.quotaNote}</small>
+          <aside className="open-source-block">
+            <div><Gauge size={23} /><span>OPEN SOURCE</span></div><strong>∞</strong><p>{t.openSource}</p><small>{t.openSourceNote}</small>
           </aside>
         </div>
       </section>

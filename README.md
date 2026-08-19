@@ -1,94 +1,250 @@
-(base) caopengbo@192 deep-dig % pnpm dev:start
-
-> deep-dig@0.1.0 dev:start /Users/caopengbo/Documents/code/deep-dig
-> scripts/deep-dig-dev.sh start
-
-redis already available on 127.0.0.1:6379
-api already running (pid 37699)
-worker already running (pid 37706)
-Starting desktop...
-desktop pid 42444
-redis: running (pid 37691)
-api: running (pid 37699)
-worker: running (pid 37706)
-desktop: running (pid 42444)
-api port: open at http://127.0.0.1:8001
-redis port: open at 127.0.0.1:6379
-(base) caopengbo@192 deep-dig %
-
 # Deep Dig
 
-Deep Dig is a desktop-first AI extraction tool for materials-science papers. The desktop parses
-PDFs locally and sends only parsed text to an authenticated, quota-aware backend. The product
-supports one focused workflow: **Material Science Data Extraction** (`material_extraction`).
+[简体中文](README.zh-CN.md)
 
-## Workspace
+Deep Dig is an open-source, schema-driven AI document extraction tool. It parses PDFs on the
+backend, runs versioned extraction workflows, and exports traceable structured results as Excel
+workbooks.
+
+## Features
+
+- Upload PDF documents and convert them to Markdown with `markitdown`.
+- Choose built-in material-property, custom-record, or entity-relationship workflows.
+- Define typed custom fields or domain entity and relationship vocabularies from the UI.
+- Keep workflow versions, schema hashes, and immutable job snapshots for reproducible resumes.
+- Queue one extraction item per document with PostgreSQL, Redis, and ARQ workers.
+- Create multiple accounts with isolated jobs, schemas, model settings, and encrypted API keys.
+- Support Anthropic, OpenRouter, and OpenAI-compatible providers, plus a zero-cost fake provider
+  for local development.
+- Configure provider, Base URL, model, API key, and temperature from the authenticated settings
+  panel, or keep using backend environment variables.
+- Track task status, retries, and failures, and export completed jobs to `.xlsx`.
+- Requeue unfinished documents after a worker, queue, or service interruption.
+- Run without built-in plans, extraction quotas, or per-user task throttles.
+- Keep provider credentials on the backend; they are never sent to the browser client.
+
+## Architecture
 
 ```text
-apps/backend        FastAPI API, arq worker, SQLAlchemy models, Alembic migrations
-apps/desktop        Tauri 2 + React shell for the desktop client
-apps/web            Marketing site
-packages/workflows  Server-owned material extraction workflow definition
-packages/shared-types Generated TypeScript API types
-infra               Supabase/Fly deployment assets and SQL policies
-docs                ADRs and runbooks
+PDF
+  -> React/Vite browser UI
+  -> FastAPI PDF parser (markitdown)
+  -> PostgreSQL job records + Redis queue
+  -> ARQ worker
+  -> configured LLM provider
+  -> versioned workflow + normalized result envelope
+  -> Excel export
 ```
+
+## Repository layout
+
+| Path | Description |
+| --- | --- |
+| `apps/backend` | FastAPI API, PDF parser, ARQ worker, SQLAlchemy models, and Alembic migrations |
+| `apps/desktop` | Main React + Vite browser UI; the historical directory name is `desktop` |
+| `apps/web` | Separate React + Vite marketing site |
+| `packages/workflows` | Server-owned extraction workflow definitions |
+| `packages/shared-types` | Generated TypeScript API types |
+| `infra` | Deployment and database assets |
+| `docs` | Architecture, API, development, and runbook documentation |
+
+## Requirements
+
+- Node.js and pnpm 9
+- Python 3.12 or newer
+- [`uv`](https://docs.astral.sh/uv/)
+- PostgreSQL
+- Redis
+
+The repository declares `pnpm@9.15.0` as its package manager.
 
 ## Quick start
 
+### 1. Install dependencies
+
 ```bash
+git clone <your-repository-url>
+cd deep-dig
+pnpm install
+
 cd apps/backend
-cp .env.example .env
 uv sync
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --port 8001
+cp .env.example .env
 ```
 
-For local development before Supabase/LLM credentials are ready, set:
+### 2. Configure the backend
+
+Create the PostgreSQL database, then edit `apps/backend/.env`:
 
 ```env
-DEV_AUTH_ENABLED=true
-LLM_PROVIDER=fake
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/deep_dig
+REDIS_URL=redis://localhost:6379/0
+AUTH_SECRET=replace-with-a-long-random-secret
+
+LLM_COMPAT_BASE_URL=https://api.openai.com/v1
+LLM_COMPAT_API_KEY=replace-with-your-api-key
+LLM_COMPAT_MODEL=gpt-4o-mini
 ```
 
-Then use `Authorization: Bearer dev` for protected API calls.
+`AUTH_SECRET` signs login tokens and encrypts per-user API keys. Generate a stable random value and
+do not change it after users save provider settings. OpenAI-compatible services such as DeepSeek
+or a local gateway can be used by replacing the URL and model.
+
+Apply the database migrations and create the frontend environment file:
 
 ```bash
-pnpm install
+uv run alembic upgrade head
+cd ../..
+cp apps/desktop/.env.example apps/desktop/.env
+```
+
+Do not use sample secrets in a public deployment.
+
+### 3. Start the complete local stack
+
+From the repository root:
+
+```bash
+pnpm dev:start
+```
+
+This starts Redis, the FastAPI API, the ARQ worker, and the main Web UI. It does not start
+PostgreSQL, so PostgreSQL must already be available.
+
+Open the main UI at:
+
+```text
+http://127.0.0.1:5173
+```
+
+Local service endpoints:
+
+- Web UI: `http://127.0.0.1:5173`
+- API: `http://127.0.0.1:8001`
+- API docs: `http://127.0.0.1:8001/docs`
+- Redis: `127.0.0.1:6379`
+
+Choose **Create account** on the main page. Each account has its own jobs, recent schemas, user
+settings, and encrypted LLM credentials. To close public registration after creating the desired
+accounts, add `REGISTRATION_ENABLED=false` to `apps/backend/.env` and restart the API.
+
+When upgrading an older single-user installation, keep its existing `LOCAL_AUTH_PASSWORD` for the
+first `admin` login. That successful login migrates the legacy user and existing jobs to a hashed
+database account; the environment password can then be removed.
+
+## Development commands
+
+```bash
+# Complete local stack using apps/backend/.env
+pnpm dev:start
+
+# Service management
+pnpm dev:status
+pnpm dev:stop
+pnpm dev:restart
+pnpm dev:logs api
+pnpm dev:logs worker
+
+# Run only the main Web UI
+pnpm dev:desktop
+
+# Run the marketing site
+pnpm dev:web
+```
+
+The marketing site runs on `http://127.0.0.1:5174`.
+
+To run services manually, use separate terminals:
+
+```bash
+# Terminal 1: API
+cd apps/backend
+uv run uvicorn app.main:app --reload --port 8001
+
+# Terminal 2: worker
+cd apps/backend
+uv run arq app.workers.arq_worker.WorkerSettings
+
+# Terminal 3: main Web UI
 cd apps/desktop
-cp .env.example .env
-uv sync
-pnpm tauri dev
+pnpm dev
 ```
 
-Or run the complete local stack from the repository root:
+## LLM provider modes
+
+| Mode | Behavior |
+| --- | --- |
+| `fake` | Returns deterministic demo results; no external API call or cost |
+| `auto` | Uses the first configured compatible provider |
+| `openrouter` | Uses the OpenRouter API |
+| `anthropic` | Uses the Anthropic API |
+| `openai_compatible` | Uses an OpenAI-compatible `/chat/completions` endpoint |
+
+The optional fake provider remains available for automated tests and offline development, but the
+normal startup path uses the real OpenAI-compatible provider configured in `.env`.
+
+The main UI also has a **Settings** panel. Environment mode reads the variables above. Custom
+mode stores an instance-local override; API keys are encrypted on the backend using a key derived
+from `AUTH_SECRET` and are never returned to the browser.
+
+## Data and privacy
+
+- Uploaded PDF bytes are processed transiently by the backend and are not persisted by the
+  application workflow.
+- Persistent PDF parsing cache is disabled by default. When explicitly enabled with
+  `PARSED_CACHE_ENABLED=true`, it stores only content-hashed parsed text and never uploader file
+  names.
+- Parsed text is present temporarily in the Redis queue and PostgreSQL while a job is unfinished,
+  allowing its remaining documents to be requeued after an interruption. It is cleared when each
+  item reaches a terminal state unless `user_settings.store_raw_text` is enabled.
+- Job metadata, extraction results, file names, and hashes are stored according to the configured
+  workflow and user settings.
+- Provider credentials and extraction prompts stay on the backend.
+
+## Quality checks
 
 ```bash
-pnpm dev:start -- --auth dev --llm fake
+# Backend formatting, linting, and tests + desktop build
+pnpm check
+
+# Individual builds
+pnpm build:desktop
+pnpm build:web
+
+# Backend tests
+cd apps/backend
+uv run pytest
 ```
 
-Build a self-contained installer for the current desktop platform:
+After changing API routes or schemas, regenerate the OpenAPI contract and shared TypeScript
+types:
 
 ```bash
-pnpm build:desktop:native
+pnpm generate:api
 ```
-
-The installer bundles the local PDF parser; end users do not need Python or `uv`. See
-[Desktop development](docs/desktop-development.md) for macOS/Windows release and signing details.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Backend development](docs/backend-development.md)
-- [Desktop development](docs/desktop-development.md)
+- [Desktop Web UI development](docs/desktop-development.md)
 - [API reference](docs/api-reference.md)
 - [Development runbook](docs/runbooks/development.md)
-- [Web deployment runbook](docs/runbooks/web-deployment.md)
 - [Roadmap](docs/roadmap.md)
 
-## MVP boundaries
+## Contributing and security
 
-- No BYO LLM key in the client.
-- No PDF upload. Only parsed text, file name, and file hash are submitted.
-- Billing is deferred; plan/quota fields are present for compatibility.
-- Raw text is not persisted unless `user_settings.store_raw_text` is true.
+Pull requests and issue reports are welcome. Please do not commit:
+
+- `.env` files or API keys
+- PDF papers, parsed caches, or generated result files
+- Database dumps, Redis snapshots, or deployment credentials
+
+Before publishing this repository, review deployment documents for private hosts, internal paths,
+and operational credentials. In particular, audit `docs/runbooks/web-deployment.md` before making
+the repository public.
+
+## License
+
+No license file is currently included. Add a `LICENSE` file before publishing if you want to
+define how others may use, modify, and redistribute this project.

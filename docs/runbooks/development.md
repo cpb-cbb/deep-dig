@@ -16,7 +16,7 @@ or replicas to increase capacity; Redis distributes item jobs across them.
 Worker concurrency and retry behavior can be tuned with:
 
 ```env
-WORKER_MAX_JOBS=8
+WORKER_MAX_JOBS=auto
 ITEM_JOB_TIMEOUT_SECONDS=600
 ITEM_MAX_TRIES=3
 ITEM_RETRY_BASE_SECONDS=2
@@ -24,33 +24,28 @@ ITEM_QUEUE_EXPIRY_SECONDS=604800
 ```
 
 Effective extraction concurrency is approximately the number of worker replicas
-multiplied by `WORKER_MAX_JOBS`. Keep it within the LLM provider's rate limits.
+multiplied by the resolved `WORKER_MAX_JOBS`. Auto mode uses 1–8 slots based on available CPU;
+keep total concurrency within the LLM provider's rate limits.
 
-### Abuse controls
+### Capacity and self-hosting
 
-Task creation, polling, export, and cancellation are rate-limited by both user
-ID and client IP. Free accounts can only have one pending or running task by
-default. Tune these controls with:
+The application has no built-in plans, extraction quotas, per-user concurrency
+gates, or request-rate limits. Instance owners control capacity through worker
+concurrency and these technical safety settings:
 
 ```env
-FREE_CONCURRENT_JOBS=1
-JOB_SUBMIT_USER_LIMIT_PER_MINUTE=5
-JOB_SUBMIT_IP_LIMIT_PER_MINUTE=20
-JOB_READ_USER_LIMIT_PER_MINUTE=90
-JOB_READ_IP_LIMIT_PER_MINUTE=240
-JOB_ACTION_USER_LIMIT_PER_MINUTE=10
-JOB_ACTION_IP_LIMIT_PER_MINUTE=40
+UPLOAD_MAX_BYTES=50000000
+MAX_TEXT_CHARS=200000
+WORKER_MAX_JOBS=auto
 ```
+
+If an instance is exposed to untrusted public traffic, configure any desired
+request throttling at the reverse proxy or deployment platform.
 
 Desktop task submissions send an `Idempotency-Key`. API clients should reuse the
 same key when retrying the same logical submission; keys are unique per user.
 Apply every Alembic migration before deploying a backend that accepts these
 requests.
-
-Quota is returned only when work never enters extraction, such as an enqueue
-failure or cancellation while an item is still pending. Once an item is claimed
-for processing, success, extraction failure, and cancellation all consume the
-reserved quota.
 
 ### VS Code debugging
 
@@ -83,32 +78,32 @@ LLM_COMPAT_MODEL=your-model-name
 `LLM_COMPAT_BASE_URL` may be either the `/v1` base URL or the full
 `/v1/chat/completions` URL.
 
-## Desktop PDF Parsing
+The authenticated UI can override provider, Base URL, model, API key, and temperature without a
+restart. The API key is encrypted in PostgreSQL using `AUTH_SECRET`; environment variables remain
+active when no override is saved.
 
-The desktop parser is a local `uv` Python project under `apps/desktop`.
-It uses `markitdown` to convert a user-selected PDF into Markdown before the
-text is submitted to the backend.
+## Web UI and PDF Parsing
 
-```bash
-cd apps/desktop
-uv sync
-uv run python -m desktop_parser.parse_pdf /absolute/path/to/input.pdf
-```
-
-The command prints JSON with `fileName`, `fileHash`, `text`, `textFormat`, and
-`textLength`. The `text` field remains compatible with the existing `/jobs`
-payload and contains Markdown.
-
-The Tauri desktop UI uses the same parser through the `parse_pdf_to_markdown`
-native command. During development, run the app from `apps/desktop` so the
-native command can execute `uv run python -m desktop_parser.parse_pdf` in that
-directory:
+The web UI is a React/Vite app under `apps/desktop` (no native shell). Run it in
+development with:
 
 ```bash
 cd apps/desktop
-uv sync
-pnpm tauri dev
+pnpm dev
 ```
+
+The app creates database accounts through `POST /auth/register`, signs in through
+`POST /auth/login`, and
+uploads PDFs to `POST /files/parse`. The backend parses them with `markitdown`
+server-side and returns the Markdown text, which the UI then submits as the job
+payload. Persistent parsing cache is disabled by default; opt in with
+`PARSED_CACHE_ENABLED=true`. Cached entries contain parsed text only, keyed by
+content hash, and never uploader file names. A full local stack (Redis, API,
+worker, Vite) can be started from the repository root with `pnpm dev:start`.
+
+If a Worker, Redis queue, or full service stack is interrupted, open the active task and choose
+**Continue**. The backend requeues unfinished items from their temporarily retained source text.
+Completed and failed items are not repeated.
 
 ## Contracts
 

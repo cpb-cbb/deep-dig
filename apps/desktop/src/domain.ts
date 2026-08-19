@@ -1,9 +1,46 @@
 export const MATERIAL_EXTRACTION_WORKFLOW_ID = 'material_extraction';
 export const MATERIAL_EXTRACTION_WORKFLOW_NAME = 'Material Science Data Extraction';
 
+export type WorkflowOut = {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  domain: string;
+  task_type: string;
+  result_type: 'material_property_table' | 'records' | 'entity_relation' | string;
+  config_schema: Record<string, unknown>;
+  output_schema: Record<string, unknown>;
+  ui_schema: {
+    controls?: Array<{
+      key: string;
+      control: 'tag_list' | 'field_builder' | string;
+      label: string;
+      help?: string;
+      placeholder?: string;
+    }>;
+  };
+  ui_config: {
+    order?: number;
+    color?: string;
+    icon?: string;
+    badge?: string;
+    speed?: string;
+  };
+};
+
+export type CustomField = {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'date' | 'boolean' | 'list';
+  description: string;
+};
+
 export type JobOut = {
   id: string;
   workflow_id: string;
+  workflow_version: string;
+  config: Record<string, unknown>;
   status: string;
   total_items: number;
   completed_items: number;
@@ -15,6 +52,15 @@ export type JobOut = {
 
 export type ParsedResult = {
   success?: boolean;
+  result_type?: string;
+  data?: {
+    samples?: Array<{ name?: string; properties?: Record<string, unknown> }>;
+    records?: Array<{ values?: Record<string, unknown> }>;
+    entities?: Array<{ id?: string; name?: string; type?: string }>;
+    relations?: Array<{ source?: string; target?: string; type?: string }>;
+  };
+  warnings?: string[];
+  // Legacy results created before the versioned workflow envelope.
   samples?: Array<{ name?: string; properties?: Record<string, unknown> }>;
   error?: string | null;
 };
@@ -33,15 +79,42 @@ export type JobItemOut = {
   finished_at: string | null;
 };
 
+export type ParsedFile = {
+  fileName: string;
+  fileHash: string;
+  text: string;
+  textFormat: 'markdown';
+  textLength: number;
+  reused: boolean;
+};
+
+export type SelectedPdf = {
+  file: File;
+  fileName: string;
+};
+
 export type MeOut = {
+  id: string;
+  username: string | null;
   email: string | null;
   display_name: string | null;
-  plan: string;
-  quota: {
-    limit: number;
-    used: number;
-    reset_at?: string;
-  };
+};
+
+export type LlmProvider = 'auto' | 'openrouter' | 'anthropic' | 'openai_compatible' | 'fake';
+
+export type LlmSettings = {
+  source: 'environment' | 'custom';
+  provider: LlmProvider;
+  base_url: string;
+  model: string;
+  temperature: number;
+  api_key_configured: boolean;
+};
+
+export type JobResumeOut = {
+  job_id: string;
+  queued_items: number;
+  unavailable_items: number;
 };
 
 export function progressPercent(job: JobOut) {
@@ -57,8 +130,13 @@ export function shortId(id: string) {
   return id.slice(0, 8);
 }
 
-export function sampleCount(item: JobItemOut) {
-  return item.parsed_result?.samples?.length ?? 0;
+export function resultCount(item: JobItemOut) {
+  const result = item.parsed_result;
+  if (!result) return 0;
+  const data = result.data ?? { samples: result.samples };
+  if (result.result_type === 'records') return data.records?.length ?? 0;
+  if (result.result_type === 'entity_relation') return data.entities?.length ?? 0;
+  return data.samples?.length ?? 0;
 }
 
 export function calculateJobStats(job: JobOut, items: JobItemOut[]) {
@@ -75,8 +153,8 @@ export function calculateJobStats(job: JobOut, items: JobItemOut[]) {
     processed,
     remaining: Math.max(0, job.total_items - processed),
     successRate: processed ? Math.round((job.completed_items / processed) * 100) : 0,
-    sampleCount: items.reduce((sum, item) => sum + sampleCount(item), 0),
-    filesWithSamples: items.filter((item) => sampleCount(item) > 0).length,
+    extractedCount: items.reduce((sum, item) => sum + resultCount(item), 0),
+    filesWithResults: items.filter((item) => resultCount(item) > 0).length,
     totalCharacters: items.reduce((sum, item) => sum + item.text_length, 0),
   };
 }
@@ -105,7 +183,11 @@ export function formatDateTime(value: string | null) {
 }
 
 export function resultLabel(item: JobItemOut) {
-  if (item.status === 'done') return `${sampleCount(item)} sample(s) parsed`;
+  if (item.status === 'done') {
+    const type = item.parsed_result?.result_type;
+    const noun = type === 'records' ? 'record(s)' : type === 'entity_relation' ? 'entity(s)' : 'sample(s)';
+    return `${resultCount(item)} ${noun} parsed`;
+  }
   if (item.status === 'running') return 'Processing';
   if (item.status === 'pending') return 'Queued';
   return 'No parsed result';
@@ -115,7 +197,7 @@ export function parseStatusLabel(parsedCount: number, selectedCount: number) {
   if (selectedCount === 0) return 'No PDFs selected';
   if (parsedCount === selectedCount) return 'Ready to submit';
   if (parsedCount > 0) return `${parsedCount}/${selectedCount} parsed`;
-  return 'Waiting for local parsing';
+  return 'Waiting for parsing';
 }
 
 export function errorMessage(error: unknown) {

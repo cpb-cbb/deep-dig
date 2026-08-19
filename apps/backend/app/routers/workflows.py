@@ -19,5 +19,11 @@ async def workflow_detail(workflow_id: str) -> WorkflowOut:
         name=data["name"],
         description=data["description"],
         version=data["version"],
+        domain=data["domain"],
+        task_type=data["task_type"],
+        result_type=data["result_type"],
+        config_schema=data.get("config_schema", {}),
+        output_schema=data.get("output_schema", {}),
+        ui_schema=data.get("ui_schema", {}),
         ui_config=data.get("ui_config", {}),
     )
