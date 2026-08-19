@@ -33,11 +33,13 @@ pnpm build       # TypeScript + web asset production build
 
 1. The UI lets the user select PDFs with a browser file picker (`src/files.ts`).
 2. The PDFs are uploaded to the backend `POST /files/parse`.
-3. The backend parses each file with `markitdown` and caches the result by content hash under
-   `PARSED_CACHE_DIR` (a repeat upload returns `reused: true`).
+3. The backend parses each file with `markitdown`. Persistent caching is disabled by default.
+   When `PARSED_CACHE_ENABLED=true`, parsed text is cached by content hash under
+   `PARSED_CACHE_DIR`; uploader file names are never cached.
 4. The UI keeps only the parsed Markdown text and submits it to `POST /jobs`.
 
-The parsed text is held in the browser; the uploaded PDF bytes are not persisted.
+The parsed text is held in the browser; the uploaded PDF bytes are not persisted. With the
+default cache setting, parsed text is not persisted by the parser either.
 
 ## Frontend structure
 
@@ -46,6 +48,10 @@ The parsed text is held in the browser; the uploaded PDF bytes are not persisted
 - `src/api.ts`: authenticated fetch/upload/download boundary and normalized connection errors
 - `src/files.ts`: browser file picker and upload-to-parse helper
 - `src/styles.css`: application styles
+
+The header **Settings** panel switches between backend environment variables and an encrypted
+database override for provider, Base URL, model, API key, and temperature. Active tasks expose a
+**Continue** action that requeues unfinished documents after an interruption.
 
 The extraction mode is intentionally not user-selectable. The app always submits
 `material_extraction`; requested property names are the user-controlled extraction configuration.

@@ -829,7 +829,7 @@ button {
   background: #566057;
 }
 
-.quota-block {
+.open-source-block {
   position: relative;
   grid-column: 1 / -1;
   display: grid;
@@ -843,7 +843,7 @@ button {
   padding: 24px 30px;
 }
 
-.quota-block > div {
+.open-source-block > div {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -853,7 +853,7 @@ button {
   letter-spacing: .12em;
 }
 
-.quota-block strong {
+.open-source-block strong {
   grid-row: 1 / -1;
   font-size: clamp(100px, 10vw, 170px);
   font-weight: 950;
@@ -861,7 +861,7 @@ button {
   line-height: .8;
 }
 
-.quota-block p {
+.open-source-block p {
   align-self: end;
   justify-self: end;
   margin: 0;
@@ -871,7 +871,7 @@ button {
   letter-spacing: -.04em;
 }
 
-.quota-block small {
+.open-source-block small {
   grid-column: 3;
   justify-self: end;
   font-size: 10px;
@@ -1410,15 +1410,15 @@ button {
 
   .capability { min-height: 400px; }
 
-  .quota-block {
+  .open-source-block {
     grid-column: auto;
     min-height: 240px;
     grid-template-columns: 1fr auto;
   }
 
-  .quota-block strong { grid-column: 2; }
-  .quota-block p { grid-column: 1; justify-self: start; }
-  .quota-block small { grid-column: 1; justify-self: start; }
+  .open-source-block strong { grid-column: 2; }
+  .open-source-block p { grid-column: 1; justify-self: start; }
+  .open-source-block small { grid-column: 1; justify-self: start; }
 
   .workflow-steps li { min-height: 510px; }
 
@@ -1494,14 +1494,14 @@ button {
 
   .capability { padding: 23px; }
 
-  .quota-block {
+  .open-source-block {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
   }
 
-  .quota-block strong { margin: 20px 0; font-size: 120px; }
+  .open-source-block strong { margin: 20px 0; font-size: 120px; }
 
   .domain-row { min-height: 112px; }
   .domain-icon { width: 44px; height: 44px; }

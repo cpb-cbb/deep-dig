@@ -5,13 +5,11 @@ ReDoc at `/redoc`, and the machine-readable schema at `/openapi.json`.
 
 ## Authentication and headers
 
-All `/me` and `/jobs` endpoints require `Authorization: Bearer <supabase-access-token>`. When
-`DEV_AUTH_ENABLED=true`, local clients may use `Bearer dev`; never enable this in staging or
-production. Desktop requests also send `X-Client-Version`.
+All `/me`, `/files`, and `/jobs` endpoints require a bearer token returned by
+`POST /auth/login`. Desktop requests also send `X-Client-Version`.
 
 `POST /jobs` should send a stable `Idempotency-Key` of 16–128 characters and reuse it when
-retrying the same logical submission. Every response includes `X-App-Version`. Rate-limited
-responses include `Retry-After` when known.
+retrying the same logical submission. Every response includes `X-App-Version`.
 
 ## Endpoints
 
@@ -21,13 +19,16 @@ responses include `Retry-After` when known.
 | `GET`   | `/version`                       | No   | Application version and environment         |
 | `GET`   | `/workflows`                     | No   | List the single supported material workflow |
 | `GET`   | `/workflows/material_extraction` | No   | Get workflow display metadata               |
-| `GET`   | `/me`                            | Yes  | Account, plan, quota, and settings          |
+| `GET`   | `/me`                            | Yes  | Account and settings                        |
 | `PATCH` | `/me`                            | Yes  | Update display name or user settings        |
+| `GET`   | `/me/llm-settings`               | Yes  | Read effective provider settings            |
+| `PATCH` | `/me/llm-settings`               | Yes  | Use environment or encrypted custom settings |
 | `POST`  | `/jobs`                          | Yes  | Validate and queue a document batch         |
 | `GET`   | `/jobs`                          | Yes  | List recent jobs owned by the caller        |
 | `GET`   | `/jobs/{job_id}`                 | Yes  | Read one owned job                          |
 | `GET`   | `/jobs/{job_id}/items`           | Yes  | Read per-document results                   |
 | `POST`  | `/jobs/{job_id}/cancel`          | Yes  | Cancel pending or running work              |
+| `POST`  | `/jobs/{job_id}/resume`          | Yes  | Requeue unfinished documents                |
 | `GET`   | `/jobs/{job_id}/export.xlsx`     | Yes  | Download a terminal job workbook            |
 | `GET`   | `/jobs/{job_id}/events`          | Yes  | Optional server-sent progress stream        |
 
@@ -35,7 +36,7 @@ responses include `Retry-After` when known.
 
 ```http
 POST /jobs
-Authorization: Bearer dev
+Authorization: Bearer <access-token>
 Content-Type: application/json
 Idempotency-Key: 018f47aa-4ab8-7cb2-a773-9237d7a450c2
 
@@ -70,7 +71,8 @@ Successful response:
 ```
 
 Only `material_extraction` is accepted. `config.properties` contains 1–100 names, each at most
-200 characters. Batch and text-size limits may be lower depending on plan and backend settings.
+200 characters. The backend enforces the configured per-document text-size safety limit but has
+no plan, extraction quota, or per-user batch/concurrency restriction.
 
 ## States and results
 
@@ -88,15 +90,34 @@ Application errors use a stable envelope:
 
 ```json
 {
-  "code": "CONCURRENT_JOB_LIMIT",
-  "message": "Finish or cancel the active task before starting another one",
-  "detail": { "limit": 1 }
+  "code": "JOB_NOT_FOUND",
+  "message": "Job not found",
+  "detail": {}
 }
 ```
 
 Common codes include `AUTH_REQUIRED`, `AUTH_INVALID`, `WORKFLOW_NOT_FOUND`,
-`BATCH_LIMIT_EXCEEDED`, `PAYLOAD_TOO_LARGE`, `CONCURRENT_JOB_LIMIT`, `QUOTA_EXCEEDED`,
-`RATE_LIMITED`, `JOB_NOT_FOUND`, `EXPORT_TOO_LARGE`, `LLM_NOT_CONFIGURED`, and
+`PAYLOAD_TOO_LARGE`, `JOB_NOT_FOUND`, `EXPORT_TOO_LARGE`, `LLM_NOT_CONFIGURED`, and
 `LLM_RATE_LIMITED`. Request-model violations use FastAPI's standard HTTP 422 response.
+
+## Provider settings
+
+Environment mode clears database overrides and makes new work items use backend environment
+variables:
+
+```json
+{ "mode": "environment" }
+```
+
+Custom mode accepts `provider`, `base_url`, `model`, `temperature`, and an optional `api_key`.
+The API key is encrypted at rest and responses expose only `api_key_configured`; they never return
+the key. Worker processes load the effective settings whenever they claim a new document.
+
+## Resume an interrupted job
+
+`POST /jobs/{job_id}/resume` resets and requeues every unfinished item with retained source text.
+Claim tokens fence previous Worker attempts, so late results from a superseded claim are ignored.
+The response reports `queued_items` and `unavailable_items`; the latter is only expected for legacy
+jobs created before resumable source retention was introduced.
 
 The generated `apps/backend/openapi.json` is authoritative for exact field types.

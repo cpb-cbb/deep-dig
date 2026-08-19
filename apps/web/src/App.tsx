@@ -44,7 +44,7 @@ const translations = {
     client: '获取客户端',
     languageLabel: '切换为英文',
     languageShort: 'EN',
-    availability: '公测期间 · 免费 50 次提取',
+    availability: '开源自部署 · 无内置任务额度',
     heroTitle: ['从文献到', '数据，', '只需片刻。'],
     heroLede: '指定你关心的字段，Deep Dig 自动从 PDF、研究文稿与报告中定位信息，输出干净、可计算的表格数据。',
     start: '免费开始使用',
@@ -71,8 +71,8 @@ const translations = {
       map: ['样品', '工艺', '性能'],
       benefits: ['多样品关系对齐', '单位与条件保留', '适配材料数据建模'],
     },
-    quota: '次免费提取额度',
-    quotaNote: '无需信用卡 · 公测期开放',
+    openSource: '无内置提取额度',
+    openSourceNote: '运行成本取决于你选择的模型服务商',
     workflowTitle: ['三步，把资料库', '变成数据集。'],
     workflowIntro: '以下用 12 篇钛合金论文，演示“字段”到底是什么。',
     workflowSteps: [
@@ -125,7 +125,7 @@ const translations = {
     client: 'Get the app',
     languageLabel: 'Switch to Chinese',
     languageShort: '中',
-    availability: 'PUBLIC BETA · 50 FREE EXTRACTIONS',
+    availability: 'OPEN SOURCE · SELF-HOSTED',
     heroTitle: ['From papers', 'to data,', 'in moments.'],
     heroLede: 'Tell Deep Dig which fields matter. It finds them across PDFs, research papers, and reports, then returns clean, analysis-ready tables.',
     start: 'Start for free',
@@ -152,8 +152,8 @@ const translations = {
       map: ['SAMPLE', 'PROCESS', 'PROPERTY'],
       benefits: ['Align multi-sample relationships', 'Preserve units and conditions', 'Ready for materials modeling'],
     },
-    quota: 'free extractions',
-    quotaNote: 'No credit card · Available during beta',
+    openSource: 'no built-in extraction quota',
+    openSourceNote: 'Usage cost depends on your LLM provider',
     workflowTitle: ['Three steps from', 'library to dataset.'],
     workflowIntro: 'Here is what “fields” mean, using 12 titanium-alloy papers as one continuous example.',
     workflowSteps: [
@@ -330,8 +330,8 @@ export function App() {
             <ul>{t.materials.benefits.map((benefit) => <li key={benefit}><Check />{benefit}</li>)}</ul>
           </article>
 
-          <aside className="quota-block">
-            <div><Gauge size={23} /><span>PUBLIC BETA</span></div><strong>50</strong><p>{t.quota}</p><small>{t.quotaNote}</small>
+          <aside className="open-source-block">
+            <div><Gauge size={23} /><span>OPEN SOURCE</span></div><strong>∞</strong><p>{t.openSource}</p><small>{t.openSourceNote}</small>
           </aside>
         </div>
       </section>

@@ -14,8 +14,6 @@ def parse_files(
     files: list[UploadFile] = File(...),
     auth: AuthUser = Depends(verify_auth),
 ) -> list[dict[str, object]]:
-    if len(files) > settings.free_batch_limit:
-        raise AppError(400, "BATCH_LIMIT_EXCEEDED", "Too many files in a single request")
     results: list[dict[str, object]] = []
     for upload in files:
         if not upload.filename or not upload.filename.lower().endswith(".pdf"):

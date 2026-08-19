@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,7 +14,6 @@ from app.config import settings
 from app.errors import AppError
 from app.models import Job, JobItem, User, UserSettings
 from app.schemas import JobCreate
-from app.services.quota import reserve_quota, rollback_quota
 from app.services.workflow_registry import get_workflow
 
 
@@ -27,12 +26,10 @@ async def ensure_user(db: AsyncSession, user_id, email: str | None) -> User:
         select(User).where(User.id == user_id).options(selectinload(User.settings))
     )
     if user is None:
-        user = User(id=user_id, email=email, monthly_quota=settings.free_monthly_quota)
+        user = User(id=user_id, email=email)
         user.settings = UserSettings(user_id=user_id)
         db.add(user)
         await db.flush()
-    if user.is_banned:
-        raise AppError(403, "USER_BANNED", "This account is banned", {"reason": user.ban_reason})
     return user
 
 
@@ -44,14 +41,12 @@ async def create_job(
     idempotency_key: str | None = None,
 ) -> tuple[Job, int, bool]:
     get_workflow(payload.workflow_id)
-    if len(payload.items) > settings.free_batch_limit and user.plan == "free":
-        raise AppError(400, "BATCH_LIMIT_EXCEEDED", "Batch size exceeds plan limit")
     for item in payload.items:
         if len(item.text) > settings.max_text_chars:
             raise AppError(413, "PAYLOAD_TOO_LARGE", "PDF text exceeds maximum length")
 
-    # Serializing task creation per user makes the concurrency and quota checks
-    # authoritative even when several modified clients submit at the same time.
+    # Serialize task creation per user so idempotency checks stay authoritative
+    # when the same client retries concurrently.
     locked_user = await db.scalar(select(User).where(User.id == user.id).with_for_update())
     if locked_user is None:
         raise AppError(404, "USER_NOT_FOUND", "User not found")
@@ -66,23 +61,6 @@ async def create_job(
         if existing_job is not None:
             return existing_job, 0, True
 
-    if locked_user.plan == "free" and settings.free_concurrent_jobs > 0:
-        active_jobs = await db.scalar(
-            select(func.count(Job.id)).where(
-                Job.user_id == locked_user.id,
-                Job.status.in_({"pending", "running"}),
-            )
-        )
-        if (active_jobs or 0) >= settings.free_concurrent_jobs:
-            raise AppError(
-                409,
-                "CONCURRENT_JOB_LIMIT",
-                "Finish or cancel the active task before starting another one",
-                {"limit": settings.free_concurrent_jobs},
-            )
-
-    await reserve_quota(db, locked_user, len(payload.items))
-    store_raw_text = bool(user.settings and user.settings.store_raw_text)
     job = Job(
         user_id=locked_user.id,
         workflow_id=payload.workflow_id,
@@ -102,7 +80,10 @@ async def create_job(
             file_name=item_payload.file_name,
             file_hash=item_payload.file_hash,
             text_length=len(item_payload.text),
-            raw_text=item_payload.text if store_raw_text else None,
+            # Active jobs retain source text so unfinished items can be requeued
+            # after a worker or Redis restart. Workers clear it at terminal state
+            # unless the user explicitly enabled long-term raw text storage.
+            raw_text=item_payload.text,
         )
         db.add(item)
         queued_items.append((item, item_payload.text))
@@ -116,7 +97,12 @@ async def create_job(
     return job, len(queued_items) - len(enqueue_errors), False
 
 
-async def _enqueue_item_jobs(job: Job, items: list[tuple[JobItem, str]]) -> dict[UUID, Exception]:
+async def _enqueue_item_jobs(
+    job: Job,
+    items: list[tuple[JobItem, str]],
+    *,
+    resumed: bool = False,
+) -> dict[UUID, Exception]:
     errors: dict[UUID, Exception] = {}
     try:
         redis = await create_pool(_redis_settings())
@@ -130,7 +116,11 @@ async def _enqueue_item_jobs(job: Job, items: list[tuple[JobItem, str]]) -> dict
                 str(job.id),
                 str(item.id),
                 text,
-                _job_id=f"extract-item-{item.id}",
+                _job_id=(
+                    f"extract-item-{item.id}-resume-{uuid4()}"
+                    if resumed
+                    else f"extract-item-{item.id}"
+                ),
                 _expires=settings.item_queue_expiry_seconds,
             )
             return item.id, None
@@ -162,25 +152,57 @@ async def _record_enqueue_failures(
             .with_for_update()
         )
     )
-    failed = 0
-    now = datetime.now(timezone.utc)
     for item in items:
-        if item.status != "pending":
-            continue
         error = errors[item.id]
-        item.status = "failed"
+        item.status = "pending"
         item.error_code = "QUEUE_ENQUEUE_FAILED"
         item.error_message = str(error) or error.__class__.__name__
-        item.finished_at = now
-        failed += 1
-    if not failed:
-        return
-    job.failed_items += failed
-    if job.failed_items >= job.total_items:
-        job.status = "failed"
-        job.finished_at = now
-    await rollback_quota(db, job.user_id, failed)
+        item.finished_at = None
     await db.commit()
+
+
+async def resume_job(db: AsyncSession, user_id, job_id: UUID) -> tuple[Job, int, int]:
+    job = await db.scalar(
+        select(Job)
+        .where(Job.id == job_id, Job.user_id == user_id)
+        .options(selectinload(Job.items), selectinload(Job.user).selectinload(User.settings))
+        .with_for_update()
+    )
+    if job is None:
+        raise AppError(404, "JOB_NOT_FOUND", "Job not found")
+    if job.status in {"completed", "cancelled"}:
+        raise AppError(409, "JOB_NOT_RESUMABLE", "Only unfinished jobs can be continued")
+
+    resumable: list[tuple[JobItem, str]] = []
+    unavailable = 0
+    for item in job.items:
+        if item.status not in {"pending", "running"}:
+            continue
+        if not item.raw_text:
+            unavailable += 1
+            continue
+        item.status = "pending"
+        item.claim_token = None
+        item.claimed_at = None
+        item.error_code = None
+        item.error_message = None
+        item.finished_at = None
+        resumable.append((item, item.raw_text))
+
+    if not resumable:
+        return job, 0, unavailable
+
+    job.status = "pending"
+    job.finished_at = None
+    job.completed_items = sum(item.status == "done" for item in job.items)
+    job.failed_items = sum(item.status == "failed" for item in job.items)
+    await db.commit()
+
+    errors = await _enqueue_item_jobs(job, resumable, resumed=True)
+    if errors:
+        await _record_enqueue_failures(db, job.id, errors)
+    await db.refresh(job)
+    return job, len(resumable) - len(errors), unavailable
 
 
 async def list_jobs(db: AsyncSession, user_id) -> list[Job]:
@@ -203,7 +225,7 @@ async def cancel_job(db: AsyncSession, user_id, job_id: UUID) -> Job:
     job = await db.scalar(
         select(Job)
         .where(Job.id == job_id, Job.user_id == user_id)
-        .options(selectinload(Job.items))
+        .options(selectinload(Job.items), selectinload(Job.user).selectinload(User.settings))
         .with_for_update()
     )
     if job is None:
@@ -211,9 +233,9 @@ async def cancel_job(db: AsyncSession, user_id, job_id: UUID) -> Job:
     if job.status in {"completed", "failed", "cancelled"}:
         return job
     now = datetime.now(timezone.utc)
+    store_raw_text = bool(job.user.settings.store_raw_text) if job.user.settings else False
     job.status = "cancelled"
     job.finished_at = now
-    cancelled_items = 0
     for item in job.items:
         if item.status != "pending":
             continue
@@ -221,9 +243,8 @@ async def cancel_job(db: AsyncSession, user_id, job_id: UUID) -> Job:
         item.error_code = "JOB_CANCELLED"
         item.error_message = "Task was cancelled before extraction started"
         item.finished_at = now
-        cancelled_items += 1
-    if cancelled_items:
-        await rollback_quota(db, job.user_id, cancelled_items)
+        if not store_raw_text:
+            item.raw_text = None
     await db.commit()
     redis = None
     try:

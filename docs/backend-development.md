@@ -11,8 +11,8 @@ uv sync
 uv run alembic upgrade head
 ```
 
-For a self-contained local workflow, set `DEV_AUTH_ENABLED=true` and `LLM_PROVIDER=fake` in
-`.env`. Start the API and worker in separate terminals:
+For a self-contained local workflow, set `LLM_PROVIDER=fake` in `.env`. Start the API and worker
+in separate terminals:
 
 ```bash
 uv run uvicorn app.main:app --reload --port 8001
@@ -22,7 +22,7 @@ uv run arq app.workers.arq_worker.WorkerSettings
 From the repository root, the process helper starts Redis, API, worker, and desktop together:
 
 ```bash
-pnpm dev:start -- --auth dev --llm fake
+pnpm dev:start -- --llm fake
 pnpm dev:status
 pnpm dev:stop
 ```
@@ -46,14 +46,18 @@ When changing job creation or worker state transitions, include a focused regres
 Use `apps/backend/.env.example` as the authoritative list. Important groups are:
 
 - Runtime: `ENV`, `APP_VERSION`, `DATABASE_URL`, `REDIS_URL`
-- Authentication: `SUPABASE_*`, `DEV_AUTH_*`
+- Authentication: `AUTH_SECRET`, `LOCAL_AUTH_*`
 - Provider: `LLM_PROVIDER` and the selected provider's key/model/base URL
-- Capacity: `FREE_BATCH_LIMIT`, `MAX_TEXT_CHARS`, `WORKER_MAX_JOBS`
+- Generation: `LLM_TEMPERATURE`
+- Capacity: `UPLOAD_MAX_BYTES`, `MAX_TEXT_CHARS`, `WORKER_MAX_JOBS`
+- Privacy: `PARSED_CACHE_ENABLED`, `PARSED_CACHE_DIR`
 - Reliability: `ITEM_JOB_TIMEOUT_SECONDS`, `ITEM_MAX_TRIES`, retry and queue expiry values
-- Abuse protection: per-user and per-IP submit/read/action limits
 - Observability: `SENTRY_DSN`
 
 Never commit `.env`, provider keys, database snapshots, parsed papers, or generated result files.
+Authenticated users can override provider settings from the main UI. Overrides are stored in
+`user_settings`; API keys are encrypted using a key derived from `AUTH_SECRET`. Changing
+`AUTH_SECRET` requires saving custom API keys again.
 
 ## Database and migrations
 
@@ -81,7 +85,7 @@ changes. Interactive docs are available at `/docs` and `/redoc` while the API is
 
 ## Production notes
 
-- Set `ENV=production` and keep `DEV_AUTH_ENABLED=false`.
+- Set `ENV=production` and use strong values for `AUTH_SECRET` and `LOCAL_AUTH_PASSWORD`.
 - Run API and worker as separate processes so they can scale independently.
 - Keep total worker concurrency within the selected LLM provider's rate limits.
 - Configure CORS deliberately before serving another browser origin.

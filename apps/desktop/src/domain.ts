@@ -50,12 +50,23 @@ export type SelectedPdf = {
 export type MeOut = {
   email: string | null;
   display_name: string | null;
-  plan: string;
-  quota: {
-    limit: number;
-    used: number;
-    reset_at?: string;
-  };
+};
+
+export type LlmProvider = 'auto' | 'openrouter' | 'anthropic' | 'openai_compatible' | 'fake';
+
+export type LlmSettings = {
+  source: 'environment' | 'custom';
+  provider: LlmProvider;
+  base_url: string;
+  model: string;
+  temperature: number;
+  api_key_configured: boolean;
+};
+
+export type JobResumeOut = {
+  job_id: string;
+  queued_items: number;
+  unavailable_items: number;
 };
 
 export function progressPercent(job: JobOut) {

@@ -6,7 +6,7 @@ Deep Dig is a materials-science extraction system. It supports one workflow:
 ```text
 PDF files
   -> browser web app (React/Vite)
-  -> backend PDF-to-Markdown parser (markitdown, hash-cached)
+  -> backend PDF-to-Markdown parser (markitdown, optional content cache)
   -> authenticated FastAPI job API
   -> PostgreSQL job/item records + Redis queue
   -> ARQ worker -> configured LLM provider
@@ -16,10 +16,15 @@ PDF files
 ## Trust boundaries
 
 - The web app uploads PDFs to the backend, which parses them with `markitdown`. Uploaded PDF
-  bytes are not persisted; only parsed Markdown, file metadata, and requested property names are
-  stored, and raw parsed text only when `user_settings.store_raw_text` is enabled.
+  bytes are not persisted. The optional persistent parsing cache is disabled by default and,
+  when enabled, stores parsed text by content hash without uploader file names. Job records store
+  raw parsed text only when `user_settings.store_raw_text` is enabled.
 - Provider credentials and prompts remain on the backend.
-- Queue payloads necessarily contain the parsed text while a task is waiting to run.
+- Queue payloads and active job items contain parsed text while a task is unfinished so it can be
+  requeued after an interruption. Terminal items clear it unless long-term raw text storage is
+  enabled.
+- Custom provider API keys are encrypted in PostgreSQL with a key derived from `AUTH_SECRET` and
+  are never returned through the API. Environment variables remain the default configuration.
 - Authentication is a single local account (`LOCAL_AUTH_USERNAME` / `LOCAL_AUTH_PASSWORD`) that
   issues signed JWTs from `POST /auth/login`. There is no Supabase and no development bypass.
 
@@ -27,8 +32,8 @@ PDF files
 
 | Path | Responsibility |
 | --- | --- |
-| `apps/backend/app/routers` | HTTP boundary, authentication, rate limits, response models |
-| `apps/backend/app/services` | Jobs, extraction, PDF parsing, normalization, quota, and export logic |
+| `apps/backend/app/routers` | HTTP boundary, authentication, and response models |
+| `apps/backend/app/services` | Jobs, extraction, PDF parsing, normalization, and export logic |
 | `apps/backend/app/workers` | Per-document ARQ execution and retry lifecycle |
 | `apps/backend/migrations` | PostgreSQL schema history |
 | `apps/desktop/src` | React web UI, API client, domain types |
@@ -39,14 +44,17 @@ PDF files
 
 ## Job lifecycle
 
-1. `POST /jobs` validates the material extraction request and reserves quota.
+1. `POST /jobs` validates the material extraction request and creates a job.
 2. One `JobItem` and one ARQ task are created per document.
 3. Workers claim items transactionally. A batch can therefore use all available worker slots.
-4. Transient LLM failures use bounded exponential retries; permanent failures affect only the
+4. Workers fence each claim with a unique token, preventing a superseded worker from overwriting
+   a manually resumed item.
+5. Transient LLM failures use bounded exponential retries; permanent failures affect only the
    current document.
-5. The parent job completes when every item is terminal. Clients poll the job endpoints or use
+6. `POST /jobs/{job_id}/resume` requeues unfinished items from their temporarily retained text.
+7. The parent job completes when every item is terminal. Clients poll the job endpoints or use
    the optional server-sent events endpoint.
-6. A terminal job can be exported as an `.xlsx` workbook.
+8. A terminal job can be exported as an `.xlsx` workbook.
 
 ## Extension rules
 

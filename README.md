@@ -13,7 +13,11 @@ structured results as Excel workbooks.
 - Queue one extraction item per document with PostgreSQL, Redis, and ARQ workers.
 - Support Anthropic, OpenRouter, and OpenAI-compatible providers, plus a zero-cost fake provider
   for local development.
-- Track task status, retries, quotas, failures, and export completed jobs to `.xlsx`.
+- Configure provider, Base URL, model, API key, and temperature from the authenticated settings
+  panel, or keep using backend environment variables.
+- Track task status, retries, and failures, and export completed jobs to `.xlsx`.
+- Requeue unfinished documents after a worker, queue, or service interruption.
+- Run without built-in plans, extraction quotas, or per-user task throttles.
 - Keep provider credentials on the backend; they are never sent to the browser client.
 
 ## Architecture
@@ -172,13 +176,22 @@ pnpm dev
 `--llm fake` only overrides the provider for the API and worker processes started by the helper
 script. It does not modify `.env`.
 
+The main UI also has a **Settings** panel. Environment mode reads the variables above. Custom
+mode stores an instance-local override; API keys are encrypted on the backend using a key derived
+from `AUTH_SECRET` and are never returned to the browser.
+
 ## Data and privacy
 
 - Uploaded PDF bytes are processed transiently by the backend and are not persisted by the
   application workflow.
-- Parsed text can be present temporarily in the Redis queue. Job metadata, extraction results,
-  file names, and hashes are stored according to the configured workflow and user settings.
-- Raw parsed text is only stored when `user_settings.store_raw_text` is enabled.
+- Persistent PDF parsing cache is disabled by default. When explicitly enabled with
+  `PARSED_CACHE_ENABLED=true`, it stores only content-hashed parsed text and never uploader file
+  names.
+- Parsed text is present temporarily in the Redis queue and PostgreSQL while a job is unfinished,
+  allowing its remaining documents to be requeued after an interruption. It is cleared when each
+  item reaches a terminal state unless `user_settings.store_raw_text` is enabled.
+- Job metadata, extraction results, file names, and hashes are stored according to the configured
+  workflow and user settings.
 - Provider credentials and extraction prompts stay on the backend.
 
 ## Quality checks

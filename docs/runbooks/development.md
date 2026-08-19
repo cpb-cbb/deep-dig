@@ -26,31 +26,25 @@ ITEM_QUEUE_EXPIRY_SECONDS=604800
 Effective extraction concurrency is approximately the number of worker replicas
 multiplied by `WORKER_MAX_JOBS`. Keep it within the LLM provider's rate limits.
 
-### Abuse controls
+### Capacity and self-hosting
 
-Task creation, polling, export, and cancellation are rate-limited by both user
-ID and client IP. Free accounts can only have one pending or running task by
-default. Tune these controls with:
+The application has no built-in plans, extraction quotas, per-user concurrency
+gates, or request-rate limits. Instance owners control capacity through worker
+concurrency and these technical safety settings:
 
 ```env
-FREE_CONCURRENT_JOBS=1
-JOB_SUBMIT_USER_LIMIT_PER_MINUTE=5
-JOB_SUBMIT_IP_LIMIT_PER_MINUTE=20
-JOB_READ_USER_LIMIT_PER_MINUTE=90
-JOB_READ_IP_LIMIT_PER_MINUTE=240
-JOB_ACTION_USER_LIMIT_PER_MINUTE=10
-JOB_ACTION_IP_LIMIT_PER_MINUTE=40
+UPLOAD_MAX_BYTES=50000000
+MAX_TEXT_CHARS=200000
+WORKER_MAX_JOBS=8
 ```
+
+If an instance is exposed to untrusted public traffic, configure any desired
+request throttling at the reverse proxy or deployment platform.
 
 Desktop task submissions send an `Idempotency-Key`. API clients should reuse the
 same key when retrying the same logical submission; keys are unique per user.
 Apply every Alembic migration before deploying a backend that accepts these
 requests.
-
-Quota is returned only when work never enters extraction, such as an enqueue
-failure or cancellation while an item is still pending. Once an item is claimed
-for processing, success, extraction failure, and cancellation all consume the
-reserved quota.
 
 ### VS Code debugging
 
@@ -83,6 +77,10 @@ LLM_COMPAT_MODEL=your-model-name
 `LLM_COMPAT_BASE_URL` may be either the `/v1` base URL or the full
 `/v1/chat/completions` URL.
 
+The authenticated UI can override provider, Base URL, model, API key, and temperature without a
+restart. The API key is encrypted in PostgreSQL using `AUTH_SECRET`; environment variables remain
+active when no override is saved.
+
 ## Web UI and PDF Parsing
 
 The web UI is a React/Vite app under `apps/desktop` (no native shell). Run it in
@@ -95,10 +93,15 @@ pnpm dev
 
 The app signs in against the backend's local login (`POST /auth/login`) and
 uploads PDFs to `POST /files/parse`. The backend parses them with `markitdown`
-server-side (cached by content hash under `PARSED_CACHE_DIR`) and returns the
-Markdown text, which the UI then submits as the job payload. A full local stack
-(Redis, API, worker, Vite) can be started from the repository root with
-`pnpm dev:start`.
+server-side and returns the Markdown text, which the UI then submits as the job
+payload. Persistent parsing cache is disabled by default; opt in with
+`PARSED_CACHE_ENABLED=true`. Cached entries contain parsed text only, keyed by
+content hash, and never uploader file names. A full local stack (Redis, API,
+worker, Vite) can be started from the repository root with `pnpm dev:start`.
+
+If a Worker, Redis queue, or full service stack is interrupted, open the active task and choose
+**Continue**. The backend requeues unfinished items from their temporarily retained source text.
+Completed and failed items are not repeated.
 
 ## Contracts
 

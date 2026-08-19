@@ -11,7 +11,10 @@ Deep Dig 是一个面向材料科学论文的实验性浏览器端 AI 信息提�
 - 通过 `material_extraction` 工作流提取材料科学属性。
 - 使用 PostgreSQL、Redis 和 ARQ Worker 管理异步任务。
 - 支持 Anthropic、OpenRouter、OpenAI 兼容接口，以及本地开发用的 fake 模式。
-- 查看任务状态、重试、配额和错误，并将完成的任务导出为 `.xlsx`。
+- 可在登录后的设置页配置 Provider、Base URL、模型、API Key 和温度，也可继续读取后端环境变量。
+- 查看任务状态、重试和错误，并将完成的任务导出为 `.xlsx`。
+- Worker、队列或服务中断后，可手动重新入队尚未完成的文档。
+- 不内置套餐、提取额度或单用户任务限流，适合自行部署。
 - 模型服务商密钥只保存在后端，不发送到浏览器客户端。
 
 ## 架构
@@ -29,15 +32,15 @@ PDF
 
 ## 目录结构
 
-| 路径 | 说明 |
-| --- | --- |
-| `apps/backend` | FastAPI API、PDF 解析器、ARQ Worker、SQLAlchemy 模型和 Alembic 迁移 |
-| `apps/desktop` | 主业务 React + Vite Web UI，历史目录名为 `desktop` |
-| `apps/web` | 独立的 React + Vite 营销站点 |
-| `packages/workflows` | 服务端工作流定义 |
-| `packages/shared-types` | 自动生成的 TypeScript API 类型 |
-| `infra` | 部署及数据库相关资源 |
-| `docs` | 架构、API、开发和运维文档 |
+| 路径                      | 说明                                                                |
+| ------------------------- | ------------------------------------------------------------------- |
+| `apps/backend`          | FastAPI API、PDF 解析器、ARQ Worker、SQLAlchemy 模型和 Alembic 迁移 |
+| `apps/desktop`          | 主业务 React + Vite Web UI，历史目录名为`desktop`                 |
+| `apps/web`              | 独立的 React + Vite 营销站点                                        |
+| `packages/workflows`    | 服务端工作流定义                                                    |
+| `packages/shared-types` | 自动生成的 TypeScript API 类型                                      |
+| `infra`                 | 部署及数据库相关资源                                                |
+| `docs`                  | 架构、API、开发和运维文档                                           |
 
 ## 环境要求
 
@@ -157,22 +160,27 @@ pnpm dev
 
 ## LLM 模式
 
-| 模式 | 行为 |
-| --- | --- |
-| `fake` | 返回固定演示结果，不调用外部 API，不产生模型费用 |
-| `auto` | 自动使用已配置的可用 Provider |
-| `openrouter` | 使用 OpenRouter API |
-| `anthropic` | 使用 Anthropic API |
-| `openai_compatible` | 使用 OpenAI 兼容的 `/chat/completions` 接口 |
+| 模式                  | 行为                                             |
+| --------------------- | ------------------------------------------------ |
+| `fake`              | 返回固定演示结果，不调用外部 API，不产生模型费用 |
+| `auto`              | 自动使用已配置的可用 Provider                    |
+| `openrouter`        | 使用 OpenRouter API                              |
+| `anthropic`         | 使用 Anthropic API                               |
+| `openai_compatible` | 使用 OpenAI 兼容的`/chat/completions` 接口     |
 
 `--llm fake` 只对启动脚本拉起的 API 和 Worker 进程临时生效，不会修改 `.env` 文件。
+
+主界面提供 **Settings** 设置面板。环境变量模式直接读取上述后端配置；自定义模式保存实例级
+覆盖配置。API Key 使用由 `AUTH_SECRET` 派生的密钥在后端加密，且不会返回浏览器。
 
 ## 数据与隐私
 
 - 上传的 PDF 字节由后端临时处理，应用工作流不会持久化原始 PDF 文件。
-- 解析文本在等待任务执行时可能临时存在 Redis 队列中；任务元数据、提取结果、文件名和哈希
-  会根据工作流及用户设置保存。
-- 只有启用 `user_settings.store_raw_text` 时才会保存原始解析文本。
+- PDF 解析持久缓存默认关闭。仅在显式设置 `PARSED_CACHE_ENABLED=true` 时启用；缓存只保存
+  按内容哈希索引的解析文本，不保存上传者文件名。
+- 未完成任务的解析文本会临时存在 Redis 和 PostgreSQL 中，以便服务中断后继续处理。文档进入
+  完成、失败或取消状态时默认清除；仅启用 `user_settings.store_raw_text` 时长期保留。
+- 任务元数据、提取结果、文件名和哈希会根据工作流及用户设置保存。
 - Provider 密钥和提取 Prompt 保留在后端。
 
 ## 质量检查

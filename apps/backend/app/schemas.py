@@ -43,14 +43,35 @@ class MeOut(BaseModel):
     id: UUID
     email: str | None
     display_name: str | None
-    plan: str
-    quota: dict[str, Any]
     settings: SettingsOut
 
 
 class MePatch(BaseModel):
     display_name: str | None = None
     settings: dict[str, Any] | None = None
+
+
+LLMProvider = Literal["auto", "openrouter", "anthropic", "openai_compatible", "fake"]
+CustomLLMProvider = Literal["openrouter", "anthropic", "openai_compatible", "fake"]
+
+
+class LLMSettingsOut(BaseModel):
+    source: Literal["environment", "custom"]
+    provider: LLMProvider
+    base_url: str
+    model: str
+    temperature: float
+    api_key_configured: bool
+
+
+class LLMSettingsPatch(BaseModel):
+    mode: Literal["environment", "custom"]
+    provider: CustomLLMProvider | None = None
+    base_url: str | None = Field(default=None, max_length=2048)
+    model: str | None = Field(default=None, max_length=500)
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    api_key: str | None = Field(default=None, max_length=10_000, repr=False)
+    clear_api_key: bool = False
 
 
 class WorkflowOut(BaseModel):
@@ -97,6 +118,12 @@ class JobCreateOut(BaseModel):
     queued_items: int
     estimated_seconds: int
     reused: bool = False
+
+
+class JobResumeOut(BaseModel):
+    job_id: UUID
+    queued_items: int
+    unavailable_items: int
 
 
 class JobOut(BaseModel):

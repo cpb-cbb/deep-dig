@@ -3,11 +3,13 @@ import {
   Clock3,
   Download,
   FileText,
+  KeyRound,
   ListChecks,
   LogIn,
   LogOut,
   Play,
   RefreshCw,
+  Settings2,
   X,
   XCircle,
 } from 'lucide-react';
@@ -29,6 +31,9 @@ import {
   shortId,
   type JobItemOut,
   type JobOut,
+  type JobResumeOut,
+  type LlmProvider,
+  type LlmSettings,
   type MeOut,
   type ParsedFile,
   type SelectedPdf,
@@ -38,6 +43,7 @@ import { parseFiles, selectPdfFiles } from './files';
 const TOKEN_STORAGE_KEY = 'deep-dig-token';
 const ACTIVE_JOB_REFRESH_MS = 6_000;
 const ACCOUNT_REFRESH_MS = 30_000;
+type CustomLlmProvider = Exclude<LlmProvider, 'auto'>;
 
 export function App() {
   const [token, setToken] = useState('');
@@ -64,6 +70,17 @@ export function App() {
   );
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [llmSettings, setLlmSettings] = useState<LlmSettings | null>(null);
+  const [llmMode, setLlmMode] = useState<'environment' | 'custom'>('environment');
+  const [llmProvider, setLlmProvider] = useState<CustomLlmProvider>('openai_compatible');
+  const [llmBaseUrl, setLlmBaseUrl] = useState('');
+  const [llmModel, setLlmModel] = useState('');
+  const [llmApiKey, setLlmApiKey] = useState('');
+  const [llmTemperature, setLlmTemperature] = useState(0);
+  const [clearLlmApiKey, setClearLlmApiKey] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const accountRefreshInFlightRef = useRef(false);
   const refreshInFlightRef = useRef(false);
   const lastManualRefreshRef = useRef(0);
@@ -158,13 +175,16 @@ export function App() {
   }, [selectedJobId, token]);
 
   useEffect(() => {
-    if (!detailsOpen) return undefined;
+    if (!detailsOpen && !settingsOpen) return undefined;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDetailsOpen(false);
+      if (event.key === 'Escape') {
+        setDetailsOpen(false);
+        setSettingsOpen(false);
+      }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [detailsOpen]);
+  }, [detailsOpen, settingsOpen]);
 
   function requestedProperties() {
     return propertiesText
@@ -266,6 +286,64 @@ export function App() {
     setJobs([]);
     setItems([]);
     setSelectedJobId(null);
+    setSettingsOpen(false);
+  }
+
+  async function openSettings() {
+    if (!token.trim() || isLoadingSettings) return;
+    setSettingsOpen(true);
+    setIsLoadingSettings(true);
+    try {
+      const current = await apiFetch<LlmSettings>('/me/llm-settings', token);
+      setLlmSettings(current);
+      setLlmMode(current.source);
+      setLlmProvider(current.provider === 'auto' ? 'openai_compatible' : current.provider);
+      setLlmBaseUrl(current.base_url);
+      setLlmModel(current.model);
+      setLlmTemperature(current.temperature);
+      setLlmApiKey('');
+      setClearLlmApiKey(false);
+    } catch (error) {
+      setStatus(errorMessage(error));
+      setSettingsOpen(false);
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  }
+
+  async function saveLlmSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSavingSettings) return;
+    setIsSavingSettings(true);
+    try {
+      const updated = await apiFetch<LlmSettings>('/me/llm-settings', token, {
+        method: 'PATCH',
+        body: JSON.stringify(llmMode === 'environment' ? {
+          mode: 'environment',
+        } : {
+          mode: 'custom',
+          provider: llmProvider,
+          base_url: llmBaseUrl,
+          model: llmModel,
+          temperature: llmTemperature,
+          api_key: llmApiKey || null,
+          clear_api_key: clearLlmApiKey,
+        }),
+      });
+      setLlmSettings(updated);
+      setLlmApiKey('');
+      setClearLlmApiKey(false);
+      setSettingsOpen(false);
+      setStatus(
+        updated.source === 'environment'
+          ? 'LLM settings now follow backend environment variables.'
+          : `Saved ${updated.provider} settings for new work items.`,
+      );
+    } catch (error) {
+      setStatus(errorMessage(error));
+    } finally {
+      setIsSavingSettings(false);
+    }
   }
 
   async function selectFiles() {
@@ -374,6 +452,30 @@ export function App() {
     }
   }
 
+  async function resumeJob(job: JobOut) {
+    const actionKey = `resume:${job.id}`;
+    if (jobActionsInFlightRef.current.has(actionKey)) return;
+    const confirmed = window.confirm(
+      'Requeue every unfinished document in this task? Use this after a worker or queue interruption.',
+    );
+    if (!confirmed) return;
+    jobActionsInFlightRef.current.add(actionKey);
+    setBusyJobId(job.id);
+    try {
+      const result = await apiFetch<JobResumeOut>(`/jobs/${job.id}/resume`, token, { method: 'POST' });
+      setStatus(
+        `Requeued ${result.queued_items} document(s)`
+        + (result.unavailable_items ? `; ${result.unavailable_items} legacy item(s) lack source text.` : '.'),
+      );
+      await Promise.all([refreshJobs(true), loadJobItems(job.id, true)]);
+    } catch (error) {
+      setStatus(errorMessage(error));
+    } finally {
+      jobActionsInFlightRef.current.delete(actionKey);
+      setBusyJobId(null);
+    }
+  }
+
   async function saveJobExport(job: JobOut) {
     const actionKey = `export:${job.id}`;
     if (jobActionsInFlightRef.current.has(actionKey)) return;
@@ -409,14 +511,19 @@ export function App() {
           {profile && (
             <div className="account-pill">
               <span>{profile.email ?? profile.display_name ?? 'Signed in'}</span>
-              <strong>{profile.quota.used}/{profile.quota.limit}</strong>
             </div>
           )}
           {token.trim() && (
-            <button className="secondary-button" type="button" onClick={signOut} title="Sign out">
-              <LogOut size={18} />
-              Sign out
-            </button>
+            <>
+              <button className="secondary-button" type="button" onClick={() => void openSettings()} title="LLM settings">
+                <Settings2 size={18} />
+                Settings
+              </button>
+              <button className="secondary-button" type="button" onClick={signOut} title="Sign out">
+                <LogOut size={18} />
+                Sign out
+              </button>
+            </>
           )}
         </div>
       </header>
@@ -534,10 +641,16 @@ export function App() {
                       Details
                     </button>
                     {!isTerminal(job.status) && (
-                      <button className="danger-button" type="button" disabled={busyJobId === job.id} onClick={() => void cancelJob(job)} title="Cancel job">
-                        <XCircle size={16} />
-                        Cancel
-                      </button>
+                      <>
+                        <button className="secondary-button" type="button" disabled={busyJobId === job.id} onClick={() => void resumeJob(job)} title="Requeue unfinished documents after an interruption">
+                          <RefreshCw size={16} />
+                          Continue
+                        </button>
+                        <button className="danger-button" type="button" disabled={busyJobId === job.id} onClick={() => void cancelJob(job)} title="Cancel job">
+                          <XCircle size={16} />
+                          Cancel
+                        </button>
+                      </>
                     )}
                     <button
                       className="secondary-button"
@@ -561,6 +674,103 @@ export function App() {
         <strong>{status}</strong>
         {savedPath && <span>Last saved: {savedPath}</span>}
       </footer>
+
+      {settingsOpen && (
+        <div className="details-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}>
+          <section
+            aria-labelledby="llm-settings-title"
+            aria-modal="true"
+            className="settings-drawer"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="settings-header">
+              <div>
+                <span className="eyebrow">Runtime configuration</span>
+                <h2 id="llm-settings-title">Model connection</h2>
+                <p>Environment defaults or an encrypted, instance-local override.</p>
+              </div>
+              <button className="close-button" type="button" onClick={() => setSettingsOpen(false)} aria-label="Close settings">
+                <X size={20} />
+              </button>
+            </header>
+
+            {isLoadingSettings || !llmSettings ? (
+              <p className="empty settings-loading">Loading provider settings…</p>
+            ) : (
+              <form className="settings-form" onSubmit={(event) => void saveLlmSettings(event)}>
+                <div className="settings-mode" role="group" aria-label="Configuration source">
+                  <button className={llmMode === 'environment' ? 'selected' : ''} type="button" onClick={() => setLlmMode('environment')}>
+                    <Settings2 size={17} />
+                    Environment
+                  </button>
+                  <button className={llmMode === 'custom' ? 'selected' : ''} type="button" onClick={() => setLlmMode('custom')}>
+                    <KeyRound size={17} />
+                    Custom
+                  </button>
+                </div>
+
+                {llmMode === 'environment' ? (
+                  <div className="environment-summary">
+                    <span>Effective provider</span>
+                    <strong>{llmSettings.provider}</strong>
+                    <dl>
+                      <div><dt>Base URL</dt><dd>{llmSettings.base_url || 'Provider default'}</dd></div>
+                      <div><dt>Model</dt><dd>{llmSettings.model || 'Not configured'}</dd></div>
+                      <div><dt>Temperature</dt><dd>{llmSettings.temperature.toFixed(2)}</dd></div>
+                      <div><dt>API key</dt><dd>{llmSettings.api_key_configured ? 'Configured in environment' : 'Not configured'}</dd></div>
+                    </dl>
+                    <p>Saving this mode removes the database override. New work items read values from the backend environment.</p>
+                  </div>
+                ) : (
+                  <div className="settings-fields">
+                    <label>
+                      <span>Provider protocol</span>
+                      <select value={llmProvider} onChange={(event) => setLlmProvider(event.target.value as CustomLlmProvider)}>
+                        <option value="openai_compatible">OpenAI compatible</option>
+                        <option value="openrouter">OpenRouter</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="fake">Fake / local test</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Base URL</span>
+                      <input value={llmBaseUrl} onChange={(event) => setLlmBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" required={llmProvider === 'openai_compatible'} />
+                    </label>
+                    <label>
+                      <span>Model</span>
+                      <input value={llmModel} onChange={(event) => setLlmModel(event.target.value)} placeholder="Model identifier" />
+                    </label>
+                    <label>
+                      <span>API key</span>
+                      <input value={llmApiKey} onChange={(event) => setLlmApiKey(event.target.value)} type="password" autoComplete="off" placeholder={llmSettings.api_key_configured ? '••••••••  Leave blank to keep current key' : 'Enter provider API key'} />
+                    </label>
+                    <label className="temperature-field">
+                      <span>Temperature</span>
+                      <div>
+                        <input min="0" max="2" step="0.05" type="range" value={llmTemperature} onChange={(event) => setLlmTemperature(Number(event.target.value))} />
+                        <input min="0" max="2" step="0.05" type="number" value={llmTemperature} onChange={(event) => setLlmTemperature(Number(event.target.value))} />
+                      </div>
+                    </label>
+                    {llmSettings.api_key_configured && (
+                      <label className="clear-key-field">
+                        <input type="checkbox" checked={clearLlmApiKey} onChange={(event) => setClearLlmApiKey(event.target.checked)} />
+                        <span>Remove the saved key and fall back to the matching environment key</span>
+                      </label>
+                    )}
+                    <p className="settings-security-note"><KeyRound size={15} /> The API key is encrypted on the backend and is never returned to this browser.</p>
+                  </div>
+                )}
+
+                <div className="settings-actions">
+                  <button className="secondary-button" type="button" onClick={() => setSettingsOpen(false)}>Cancel</button>
+                  <button type="submit" disabled={isSavingSettings}>{isSavingSettings ? 'Saving…' : 'Save settings'}</button>
+                </div>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
 
       {detailsOpen && selectedJob && selectedJobStats && (
         <div className="details-backdrop" role="presentation" onMouseDown={() => setDetailsOpen(false)}>
