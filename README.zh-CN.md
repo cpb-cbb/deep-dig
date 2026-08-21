@@ -5,6 +5,13 @@
 Deep Dig 是一个开源、由 Schema 驱动的浏览器端 AI 文档信息提取工具。系统在后端解析 PDF，
 通过可版本化工作流提取带来源依据的结构化数据，并支持导出 Excel 结果。
 
+![界面](image/README.zh-CN/1787287727440.png)
+提取结果示例：
+
+![1787287895555](image/README.zh-CN/1787287895555.png)
+
+![1787289385824](image/README.zh-CN/1787289385824.png)
+
 ## 项目能力
 
 - 上传 PDF 文档，并使用 `markitdown` 转换为 Markdown。
@@ -14,6 +21,7 @@ Deep Dig 是一个开源、由 Schema 驱动的浏览器端 AI 文档信息提�
 - 使用 PostgreSQL、Redis 和 ARQ Worker 管理异步任务。
 - 支持数据库多用户注册，任务、Schema、模型设置和加密 API Key 按账号隔离。
 - 支持 Anthropic、OpenRouter、OpenAI 兼容接口，以及本地开发用的 fake 模式。
+- 
 - 可在登录后的设置页配置 Provider、Base URL、模型、API Key 和温度，也可继续读取后端环境变量。
 - 查看任务状态、重试和错误，并将完成的任务导出为 `.xlsx`。
 - Worker、队列或服务中断后，可手动重新入队尚未完成的文档。

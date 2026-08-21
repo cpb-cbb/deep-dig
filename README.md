@@ -6,6 +6,14 @@ Deep Dig is an open-source, schema-driven AI document extraction tool. It parses
 backend, runs versioned extraction workflows, and exports traceable structured results as Excel
 workbooks.
 
+
+![界面](image/README.zh-CN/1787287727440.png)
+output：
+
+![1787287895555](image/README.zh-CN/1787287895555.png)
+
+![1787289385824](image/README.zh-CN/1787289385824.png)
+
 ## Features
 
 - Upload PDF documents and convert them to Markdown with `markitdown`.
@@ -38,15 +46,15 @@ PDF
 
 ## Repository layout
 
-| Path | Description |
-| --- | --- |
-| `apps/backend` | FastAPI API, PDF parser, ARQ worker, SQLAlchemy models, and Alembic migrations |
-| `apps/desktop` | Main React + Vite browser UI; the historical directory name is `desktop` |
-| `apps/web` | Separate React + Vite marketing site |
-| `packages/workflows` | Server-owned extraction workflow definitions |
-| `packages/shared-types` | Generated TypeScript API types |
-| `infra` | Deployment and database assets |
-| `docs` | Architecture, API, development, and runbook documentation |
+| Path                      | Description                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `apps/backend`          | FastAPI API, PDF parser, ARQ worker, SQLAlchemy models, and Alembic migrations |
+| `apps/desktop`          | Main React + Vite browser UI; the historical directory name is`desktop`      |
+| `apps/web`              | Separate React + Vite marketing site                                           |
+| `packages/workflows`    | Server-owned extraction workflow definitions                                   |
+| `packages/shared-types` | Generated TypeScript API types                                                 |
+| `infra`                 | Deployment and database assets                                                 |
+| `docs`                  | Architecture, API, development, and runbook documentation                      |
 
 ## Requirements
 
@@ -129,8 +137,9 @@ From the repository root:
 pnpm dev:start
 ```
 
-This starts Redis, the FastAPI API, the ARQ worker, and the main Web UI. It does not start
-PostgreSQL, so PostgreSQL must already be available.
+This starts Redis, the FastAPI API, the ARQ worker, and the main Web UI. It does not install or
+start PostgreSQL, so PostgreSQL must already be installed, running, and configured before this
+command. If PostgreSQL is unavailable, the API migration/startup will fail.
 
 Open the main UI at:
 
@@ -193,13 +202,13 @@ pnpm dev
 
 ## LLM provider modes
 
-| Mode | Behavior |
-| --- | --- |
-| `fake` | Returns deterministic demo results; no external API call or cost |
-| `auto` | Uses the first configured compatible provider |
-| `openrouter` | Uses the OpenRouter API |
-| `anthropic` | Uses the Anthropic API |
-| `openai_compatible` | Uses an OpenAI-compatible `/chat/completions` endpoint |
+| Mode                  | Behavior                                                         |
+| --------------------- | ---------------------------------------------------------------- |
+| `fake`              | Returns deterministic demo results; no external API call or cost |
+| `auto`              | Uses the first configured compatible provider                    |
+| `openrouter`        | Uses the OpenRouter API                                          |
+| `anthropic`         | Uses the Anthropic API                                           |
+| `openai_compatible` | Uses an OpenAI-compatible`/chat/completions` endpoint          |
 
 The optional fake provider remains available for automated tests and offline development, but the
 normal startup path uses the real OpenAI-compatible provider configured in `.env`.
