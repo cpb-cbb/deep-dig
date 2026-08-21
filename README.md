@@ -58,6 +58,27 @@ PDF
 
 The repository declares `pnpm@9.15.0` as its package manager.
 
+PostgreSQL is an external prerequisite: the repository does not install it or start it for you.
+Install PostgreSQL using your platform's package manager or the [official installer](https://www.postgresql.org/download/),
+then make sure the service is running. For example, on macOS with Homebrew:
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+```
+
+Create a local application user and database (choose your own password):
+
+```bash
+psql postgres
+```
+
+```sql
+CREATE USER deep_dig WITH PASSWORD 'replace-with-a-local-password';
+CREATE DATABASE deep_dig OWNER deep_dig;
+\q
+```
+
 ## Quick start
 
 ### 1. Install dependencies
@@ -74,10 +95,10 @@ cp .env.example .env
 
 ### 2. Configure the backend
 
-Create the PostgreSQL database, then edit `apps/backend/.env`:
+Edit `apps/backend/.env` with the credentials you used above:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/deep_dig
+DATABASE_URL=postgresql+asyncpg://deep_dig:replace-with-a-local-password@localhost:5432/deep_dig
 REDIS_URL=redis://localhost:6379/0
 AUTH_SECRET=replace-with-a-long-random-secret
 

@@ -55,6 +55,27 @@ PDF
 
 仓库声明的包管理器版本为 `pnpm@9.15.0`。
 
+PostgreSQL 是外部依赖：本仓库不会自动安装或启动它。请先使用操作系统的包管理器或
+[PostgreSQL 官方安装程序](https://www.postgresql.org/download/)完成安装，并确保服务正在运行。
+macOS 使用 Homebrew 时可以执行：
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+```
+
+然后创建本地应用用户和数据库（请自行设置密码）：
+
+```bash
+psql postgres
+```
+
+```sql
+CREATE USER deep_dig WITH PASSWORD 'replace-with-a-local-password';
+CREATE DATABASE deep_dig OWNER deep_dig;
+\q
+```
+
 ## 快速开始
 
 ### 1. 安装依赖
@@ -71,10 +92,10 @@ cp .env.example .env
 
 ### 2. 配置后端
 
-创建 PostgreSQL 数据库，然后编辑 `apps/backend/.env`：
+使用上面创建的用户名和密码编辑 `apps/backend/.env`：
 
 ```env
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/deep_dig
+DATABASE_URL=postgresql+asyncpg://deep_dig:replace-with-a-local-password@localhost:5432/deep_dig
 REDIS_URL=redis://localhost:6379/0
 AUTH_SECRET=replace-with-a-long-random-secret
 
@@ -104,8 +125,8 @@ cp apps/desktop/.env.example apps/desktop/.env
 pnpm dev:start
 ```
 
-该命令会启动 Redis、FastAPI API、ARQ Worker 和主 Web UI，但不会启动 PostgreSQL；PostgreSQL
-需要提前运行。
+该命令会启动 Redis、FastAPI API、ARQ Worker 和主 Web UI，但不会安装或启动 PostgreSQL。
+执行此命令前，PostgreSQL 必须已经安装、运行并完成配置，否则数据库迁移或 API 启动会失败。
 
 主 Web UI 地址：
 
